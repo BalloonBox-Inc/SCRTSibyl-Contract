@@ -3,7 +3,7 @@ use cosmwasm_std::{
     StdError, StdResult, Storage,
 };
 
-use crate::msg::{CountResponse, HandleMsg, InitMsg, QueryMsg};
+use crate::msg::{ScoreResponse, HandleMsg, InitMsg, QueryMsg};
 use crate::state::{config, config_read, State};
 
 pub fn init<S: Storage, A: Api, Q: Querier>(
@@ -12,7 +12,7 @@ pub fn init<S: Storage, A: Api, Q: Querier>(
     msg: InitMsg,
 ) -> StdResult<InitResponse> {
     let state = State {
-        count: msg.count,
+        score: msg.score,
         owner: deps.api.canonical_address(&env.message.sender)?,
     };
 
@@ -39,8 +39,8 @@ pub fn try_increment<S: Storage, A: Api, Q: Querier>(
     _env: Env,
 ) -> StdResult<HandleResponse> {
     config(&mut deps.storage).update(|mut state| {
-        state.count += 1;
-        debug_print!("count = {}", state.count);
+        state.score += 1;
+        debug_print!("count = {}", state.score);
         Ok(state)
     })?;
 
@@ -51,14 +51,14 @@ pub fn try_increment<S: Storage, A: Api, Q: Querier>(
 pub fn try_reset<S: Storage, A: Api, Q: Querier>(
     deps: &mut Extern<S, A, Q>,
     env: Env,
-    count: i32,
+    score: i32,
 ) -> StdResult<HandleResponse> {
     let sender_address_raw = deps.api.canonical_address(&env.message.sender)?;
     config(&mut deps.storage).update(|mut state| {
         if sender_address_raw != state.owner {
             return Err(StdError::Unauthorized { backtrace: None });
         }
-        state.count = count;
+        state.score = score;
         Ok(state)
     })?;
     debug_print("count reset successfully");
@@ -74,9 +74,9 @@ pub fn query<S: Storage, A: Api, Q: Querier>(
     }
 }
 
-fn query_count<S: Storage, A: Api, Q: Querier>(deps: &Extern<S, A, Q>) -> StdResult<CountResponse> {
+fn query_count<S: Storage, A: Api, Q: Querier>(deps: &Extern<S, A, Q>) -> StdResult<ScoreResponse> {
     let state = config_read(&deps.storage).load()?;
-    Ok(CountResponse { count: state.count })
+    Ok(ScoreResponse { score: state.score })
 }
 
 #[cfg(test)]
@@ -89,7 +89,7 @@ mod tests {
     fn proper_initialization() {
         let mut deps = mock_dependencies(20, &[]);
 
-        let msg = InitMsg { count: 17 };
+        let msg = InitMsg { score: 17 };
         let env = mock_env("creator", &coins(1000, "earth"));
 
         // we can just call .unwrap() to assert this was a success
@@ -98,15 +98,15 @@ mod tests {
 
         // it worked, let's query the state
         let res = query(&deps, QueryMsg::GetCount {}).unwrap();
-        let value: CountResponse = from_binary(&res).unwrap();
-        assert_eq!(17, value.count);
+        let value: ScoreResponse = from_binary(&res).unwrap();
+        assert_eq!(17, value.score);
     }
 
     #[test]
     fn increment() {
         let mut deps = mock_dependencies(20, &coins(2, "token"));
 
-        let msg = InitMsg { count: 17 };
+        let msg = InitMsg { score: 17 };
         let env = mock_env("creator", &coins(2, "token"));
         let _res = init(&mut deps, env, msg).unwrap();
 
@@ -117,15 +117,15 @@ mod tests {
 
         // should increase counter by 1
         let res = query(&deps, QueryMsg::GetCount {}).unwrap();
-        let value: CountResponse = from_binary(&res).unwrap();
-        assert_eq!(18, value.count);
+        let value: ScoreResponse = from_binary(&res).unwrap();
+        assert_eq!(18, value.score);
     }
 
     #[test]
     fn reset() {
         let mut deps = mock_dependencies(20, &coins(2, "token"));
 
-        let msg = InitMsg { count: 17 };
+        let msg = InitMsg { score: 17 };
         let env = mock_env("creator", &coins(2, "token"));
         let _res = init(&mut deps, env, msg).unwrap();
 
@@ -145,7 +145,7 @@ mod tests {
 
         // should now be 5
         let res = query(&deps, QueryMsg::GetCount {}).unwrap();
-        let value: CountResponse = from_binary(&res).unwrap();
-        assert_eq!(5, value.count);
+        let value: ScoreResponse = from_binary(&res).unwrap();
+        assert_eq!(5, value.score);
     }
 }
