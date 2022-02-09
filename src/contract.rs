@@ -4,16 +4,16 @@ use cosmwasm_std::{
 };
 
 use crate::msg::{ScoreResponse, HandleMsg, InitMsg, QueryMsg};
-use crate::state::{config, config_read, State};
+use crate::state::{config, config_read, User};
 
 pub fn init<S: Storage, A: Api, Q: Querier>(
     deps: &mut Extern<S, A, Q>,
     env: Env,
     msg: InitMsg,
 ) -> StdResult<InitResponse> {
-    let state = State {
+    let state = User {
         score: msg.score,
-        owner: deps.api.canonical_address(&env.message.sender)?,
+        address: deps.api.canonical_address(&env.message.sender)?,
     };
 
     config(&mut deps.storage).save(&state)?;
@@ -55,7 +55,7 @@ pub fn try_reset<S: Storage, A: Api, Q: Querier>(
 ) -> StdResult<HandleResponse> {
     let sender_address_raw = deps.api.canonical_address(&env.message.sender)?;
     config(&mut deps.storage).update(|mut state| {
-        if sender_address_raw != state.owner {
+        if sender_address_raw != state.address {
             return Err(StdError::Unauthorized { backtrace: None });
         }
         state.score = score;
