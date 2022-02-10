@@ -44,8 +44,11 @@ pub enum QueryMsg {
 impl QueryMsg {
     pub fn get_validation_params(&self) -> Vec<&HumanAddr> {
 
+
+
         match self {
             Self::GetScore { address, .. } => {
+                println!("address: {}", address);
                 println!("validation params : {:?}", vec![address]);
                 vec![address]
             },

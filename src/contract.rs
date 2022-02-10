@@ -62,12 +62,9 @@ pub fn try_record<S: Storage, A: Api, Q: Querier>(
     let status: String;
     let sender_address = deps.api.canonical_address(&env.message.sender)?;
 
-    println!("SENDER ADDRESS IS : {}", sender_address);
     save(&mut deps.storage, &sender_address.as_slice().to_vec(), &score)?;
 
     status = String::from("Score recorded!");
-
-    println!("STATUS IS: {}", status);
 
     Ok(HandleResponse {
         messages: vec![],
@@ -83,26 +80,17 @@ fn query_read<S: Storage, A: Api, Q: Querier>(
     deps: &Extern<S, A, Q>,
     address: &HumanAddr,
 ) -> StdResult<ScoreResponse> {
-    let status: String;
+    // let status: String;
     // let mut score: Option<u64> = None;
     // let mut timestamp: Option<u64> = None;
 
     let sender_address = deps.api.canonical_address(&address)?;
 
-    let key_from_address = &sender_address.as_slice().to_vec();
 
-    println!("KEY FROM ADDRESS IS : {:?}", key_from_address);
-
-
-    println!("sender_address as slice to vec in query_read IS: {:?}", sender_address.as_slice().to_vec());
     // read the reminder from storage
     let result: Option<u64> = may_load(&deps.storage, &sender_address.as_slice().to_vec()).ok().unwrap();
 
-    println!("RESULT FROM QUERY_READ IS: {:?}", result);
-
-    if result == None {
-        println!("NONE NOEN NOENONEONEON")
-    }
+  
 
     // match result {
     //     // set all response field values
@@ -135,8 +123,6 @@ fn query_stats<S: Storage, A: Api, Q: Querier>(deps: &Extern<S, A, Q>) ->  StdRe
     // let state = config_read(&deps.storage).load()?;
 
     let config: State = load(&deps.storage, CONFIG_KEY)?;
-
-    println!("CONFIG IS: {:?}", config);
     Ok(StatsResponse {score_count: config.score_count, max_size: config.max_size})
     // to_binary(&QueryAnswer::Stats{ score_count: config.score_count, max_size: config.max_size })
 }
@@ -177,10 +163,7 @@ pub fn query<S: Storage, A: Api, Q: Querier>(
     msg: QueryMsg,
 ) -> QueryResult {
 
-    // println!("QUERY MSG ADDRESS IS: {}", msg.get_validation_params())
-    let address = msg.get_validation_params();
 
-    println!("addres from get validation is: {:?}", address);
 
     match msg {
         // QueryMsg::GetScore {} => to_binary(&query_count(deps)?),
@@ -196,32 +179,24 @@ pub fn query<S: Storage, A: Api, Q: Querier>(
 mod tests {
     use super::*;
     use cosmwasm_std::testing::{mock_dependencies, mock_env};
-    use cosmwasm_std::{coins, from_binary, StdError};
+    use cosmwasm_std::{coins, from_binary};
 
-    // #[test]
-    // fn proper_initialization() {
-    //     let mut deps = mock_dependencies(20, &[]);
+    #[test]
+    fn proper_initialization() {
+        let mut deps = mock_dependencies(20, &[]);
 
-    //     let msg = InitMsg { max_size: 1000 };
-    //     let env = mock_env("creator", &coins(1000, "earth"));
+        let msg = InitMsg { max_size: 1000 };
+        let env = mock_env("creator", &coins(1000, "earth"));
 
-    //     // we can just call .unwrap() to assert this was a success
-    //     let res = init(&mut deps, env, msg).unwrap();
-
-    //     println!("Res is {:?}", res);
-
-    //     assert_eq!(0, res.messages.len());
+        // we can just call .unwrap() to assert this was a success
+        let res = init(&mut deps, env, msg).unwrap();
+        assert_eq!(0, res.messages.len());
         
-    //     // Query the stats 
-    //     let res = query(&deps, QueryMsg::GetStats {}).unwrap();
-    //     println!("res is: {:?}", res);
-        
-    //     let value: StatsResponse = from_binary(&res).unwrap();
-    //     println!("val is: {:?}", value);
-
-    //     println!("Max size is {:?}", value.max_size);
-    //     assert_eq!(1000, value.max_size);
-    // }
+        // Query the stats 
+        let res = query(&deps, QueryMsg::GetStats {}).unwrap();
+        let value: StatsResponse = from_binary(&res).unwrap();
+        assert_eq!(1000, value.max_size);
+    }
 
     #[test]
     fn handle_record() {
@@ -237,19 +212,16 @@ mod tests {
 
 
         // NEXT WE QUERY THE SCORE 
-
         let query_env = mock_env("creator", &coins(20, "token"));
         let query_msg = QueryMsg::GetScore { address: query_env.message.sender };
-        
         let res = query(&deps, query_msg).unwrap(); 
         let value: ScoreResponse = from_binary(&res).unwrap();
-
-        println!("VALUE IS {:?}", value);
 
         assert_eq!(300, value.score);
     }
 
-        // #[test]
+  
+    // #[test]
     // fn increment() {
     //     let mut deps = mock_dependencies(20, &coins(2, "token"));
 

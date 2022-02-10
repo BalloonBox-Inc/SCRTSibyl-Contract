@@ -31,8 +31,6 @@ pub fn config_read<S: Storage>(storage: &S) -> ReadonlySingleton<S, User> {
 
 pub fn save<T: Serialize, S: Storage>(storage: &mut S, key: &[u8], value: &T) -> StdResult<()> {
     storage.set(key, &Bincode2::serialize(value)?);
-    println!("Saving data: KEY IS {:?}, VALUE IS {:?}", key, &Bincode2::serialize(value)?);
-    // println!("Unserialized data is {:?}", value);
     Ok(())
 }
 
@@ -46,18 +44,13 @@ pub fn load<T: DeserializeOwned, S: ReadonlyStorage>(storage: &S, key: &[u8]) ->
 }
 
 pub fn may_load<T: DeserializeOwned, S: ReadonlyStorage>(storage: &S, key: &[u8]) -> StdResult<Option<T>> {
-    println!("STORAGE KEY IS {:?}, VALUE FROM STORAGE: {:?}", key, storage.get(key));
-    // storage.get(key)
-    // let value = storage.get(key);
     match storage.get(key) {
         Some(value) => {
-            //  Bincode2::deserialize(&value)
-            println!("value with the some?: {:?}", value);
             Bincode2::deserialize(&value[..]).map(Some)
         },  
         None => {
-            println!("OOOP, NOTHING HERE.");
-            Ok(None)
+            panic!("No score found.")
+            // Ok(None)
         },
     }
 }
