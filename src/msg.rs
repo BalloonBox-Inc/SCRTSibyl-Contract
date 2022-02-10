@@ -1,5 +1,6 @@
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
+use cosmwasm_std::{HumanAddr};
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
 pub struct InitMsg {
@@ -23,21 +24,42 @@ pub enum HandleAnswer {
     Record {
         status: String,
     },
+
+    Read {
+        status: String,
+        score: Option<u64>,
+    }
   
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
 #[serde(rename_all = "snake_case")]
 pub enum QueryMsg {
-    GetScore {},
+    GetScore {
+        address: HumanAddr,
+    },
     GetStats {},
+}
+
+impl QueryMsg {
+    pub fn get_validation_params(&self) -> Vec<&HumanAddr> {
+
+        match self {
+            Self::GetScore { address, .. } => {
+                println!("validation params : {:?}", vec![address]);
+                vec![address]
+            },
+            _ => panic!("This query type does not require authentication"),
+        }
+    }
 }
 
 // We define a custom struct for each query response
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
 pub struct ScoreResponse {
-    pub score: i32,
+    pub score: u64,
 }
+
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
 pub struct StatsResponse {
@@ -57,8 +79,9 @@ pub enum QueryAnswer {
     },
     /// Return a status message and the current reminder and its timestamp, if it exists
     Read {
-        status: String,
-        reminder: Option<String>,
-        timestamp: Option<u64>,
+        score: Option<u64>,
+        // status: String,
+        // reminder: Option<String>,
+        // timestamp: Option<u64>,
     },
 }

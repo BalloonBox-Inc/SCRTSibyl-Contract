@@ -3,7 +3,7 @@ use serde::{Deserialize, Serialize};
 use serde::de::DeserializeOwned;
 use std::{any::type_name};
 
-use cosmwasm_std::{CanonicalAddr, Storage, StdResult, ReadonlyStorage, StdError};
+use cosmwasm_std::{CanonicalAddr, Storage, StdResult, ReadonlyStorage, StdError, from_binary};
 use cosmwasm_storage::{singleton, singleton_read, ReadonlySingleton, Singleton};
 use secret_toolkit::serialization::{Bincode2, Serde,};
 
@@ -31,10 +31,13 @@ pub fn config_read<S: Storage>(storage: &S) -> ReadonlySingleton<S, User> {
 
 pub fn save<T: Serialize, S: Storage>(storage: &mut S, key: &[u8], value: &T) -> StdResult<()> {
     storage.set(key, &Bincode2::serialize(value)?);
+    println!("Saving data: KEY IS {:?}, VALUE IS {:?}", key, &Bincode2::serialize(value)?);
+    // println!("Unserialized data is {:?}", value);
     Ok(())
 }
 
 pub fn load<T: DeserializeOwned, S: ReadonlyStorage>(storage: &S, key: &[u8]) -> StdResult<T> {
+    println!("storage is: {:?}", storage.get(key));
     Bincode2::deserialize(
         &storage
             .get(key)
@@ -43,8 +46,18 @@ pub fn load<T: DeserializeOwned, S: ReadonlyStorage>(storage: &S, key: &[u8]) ->
 }
 
 pub fn may_load<T: DeserializeOwned, S: ReadonlyStorage>(storage: &S, key: &[u8]) -> StdResult<Option<T>> {
+    println!("STORAGE KEY IS {:?}, VALUE FROM STORAGE: {:?}", key, storage.get(key));
+    // storage.get(key)
+    // let value = storage.get(key);
     match storage.get(key) {
-        Some(value) => Bincode2::deserialize(&value).map(Some),
-        None => Ok(None),
+        Some(value) => {
+            //  Bincode2::deserialize(&value)
+            println!("value with the some?: {:?}", value);
+            Bincode2::deserialize(&value[..]).map(Some)
+        },  
+        None => {
+            println!("OOOP, NOTHING HERE.");
+            Ok(None)
+        },
     }
 }
