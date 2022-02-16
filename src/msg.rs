@@ -1,6 +1,7 @@
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 use cosmwasm_std::{HumanAddr};
+use secret_toolkit::permit::Permit;
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
 pub struct InitMsg {
@@ -39,6 +40,20 @@ pub enum QueryMsg {
         address: HumanAddr,
     },
     GetStats {},
+    WithPermit {
+        permit: Permit,
+        query: QueryWithPermit,
+        address: HumanAddr // adding the address of the user 
+    }
+}
+
+
+#[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
+#[serde(rename_all = "snake_case")]
+pub enum QueryWithPermit {
+    Balance {
+        // address: HumanAddr
+    },
 }
 
 impl QueryMsg {

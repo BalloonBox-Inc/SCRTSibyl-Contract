@@ -3,11 +3,103 @@ use serde::{Deserialize, Serialize};
 use serde::de::DeserializeOwned;
 use std::{any::type_name};
 
-use cosmwasm_std::{CanonicalAddr, Storage, StdResult, ReadonlyStorage, StdError, from_binary};
-use cosmwasm_storage::{singleton, singleton_read, ReadonlySingleton, Singleton};
+use cosmwasm_std::{ Storage, StdResult, ReadonlyStorage, StdError,  HumanAddr};
+use cosmwasm_storage::{singleton, singleton_read, ReadonlySingleton, Singleton, ReadonlyPrefixedStorage, PrefixedStorage};
 use secret_toolkit::serialization::{Bincode2, Serde,};
 
 pub static CONFIG_KEY: &[u8] = b"config";
+pub const PREFIX_CONFIG: &[u8] = b"config";
+pub const KEY_CONSTANTS: &[u8] = b"constants";
+
+#[derive(Serialize, Debug, Deserialize, Clone, PartialEq, JsonSchema)]
+pub struct Constants {
+    // pub name: String,
+    // pub admin: HumanAddr,
+    // pub symbol: String,
+    // pub decimals: u8,
+    // pub prng_seed: Vec<u8>,
+    // // privacy configuration
+    // pub total_supply_is_public: bool,
+    // // is deposit enabled
+    // pub deposit_is_enabled: bool,
+    // // is redeem enabled
+    // pub redeem_is_enabled: bool,
+    // // is mint enabled
+    // pub mint_is_enabled: bool,
+    // // is burn enabled
+    // pub burn_is_enabled: bool,
+    // the address of this contract, used to validate query permits
+    pub contract_address: HumanAddr,
+}
+
+pub struct Config<'a, S: Storage> {
+    storage: PrefixedStorage<'a, S>,
+}
+
+pub struct ReadonlyConfig<'a, S: ReadonlyStorage> {
+    storage: ReadonlyPrefixedStorage<'a, S>,
+}
+
+impl<'a, S: ReadonlyStorage> ReadonlyConfig<'a, S> {
+    pub fn from_storage(storage: &'a S) -> Self {
+        Self {
+            storage: ReadonlyPrefixedStorage::new(PREFIX_CONFIG, storage),
+        }
+    }
+
+    fn as_readonly(&self) -> ReadonlyConfigImpl<ReadonlyPrefixedStorage<S>> {
+        ReadonlyConfigImpl(&self.storage)
+    }
+
+
+    pub fn constants(&self) -> StdResult<Constants> {
+        self.as_readonly().constants()
+    }
+
+}
+
+/// This struct refactors out the readonly methods that we need for `Config` and `ReadonlyConfig`
+/// in a way that is generic over their mutability.
+///
+/// This was the only way to prevent code duplication of these methods because of the way
+/// that `ReadonlyPrefixedStorage` and `PrefixedStorage` are implemented in `cosmwasm-std`
+struct ReadonlyConfigImpl<'a, S: ReadonlyStorage>(&'a S);
+
+
+impl<'a, S: ReadonlyStorage> ReadonlyConfigImpl<'a, S> {
+    fn constants(&self) -> StdResult<Constants> {
+        let consts_bytes = self
+            .0
+            .get(KEY_CONSTANTS)
+            .ok_or_else(|| StdError::generic_err("no constants stored in configuration"))?;
+        bincode2::deserialize::<Constants>(&consts_bytes)
+            .map_err(|e| StdError::serialize_err(type_name::<Constants>(), e))
+    }
+}
+
+fn ser_bin_data<T: Serialize>(obj: &T) -> StdResult<Vec<u8>> {
+    bincode2::serialize(&obj).map_err(|e| StdError::serialize_err(type_name::<T>(), e))
+}
+
+fn set_bin_data<T: Serialize, S: Storage>(storage: &mut S, key: &[u8], data: &T) -> StdResult<()> {
+    let bin_data = ser_bin_data(data)?;
+
+    storage.set(key, &bin_data);
+    Ok(())
+}
+
+
+impl<'a, S: Storage> Config<'a, S> {
+    pub fn from_storage(storage: &'a mut S) -> Self {
+        Self {
+            storage: PrefixedStorage::new(PREFIX_CONFIG, storage),
+        }
+    }
+
+    pub fn set_constants(&mut self, constants: &Constants) -> StdResult<()> {
+        set_bin_data(&mut self.storage, KEY_CONSTANTS, constants)
+    }
+}
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
 pub struct State {
@@ -24,6 +116,26 @@ pub struct User {
 pub fn config<S: Storage>(storage: &mut S) -> Singleton<S, User> {
     singleton(storage, CONFIG_KEY)
 }
+
+
+
+// pub struct ReadonlyConfig<'a, S: ReadonlyStorage> {
+//     storage: ReadonlyPrefixedStorage<'a, S>,
+// }
+
+
+// impl<'a, S: ReadonlyStorage> ReadonlyConfig<'a, S> {
+//     pub fn from_storage(storage: &'a S) -> Self {
+//         Self {
+//             storage: ReadonlyPrefixedStorage::new(PREFIX_CONFIG, storage),
+//         }
+//     }
+
+//     // pub fn constants(&self) -> StdResult<Constants> {
+//     //     self.as_readonly().constants()
+//     // }
+// }
+
 
 pub fn config_read<S: Storage>(storage: &S) -> ReadonlySingleton<S, User> {
     singleton_read(storage, CONFIG_KEY)
