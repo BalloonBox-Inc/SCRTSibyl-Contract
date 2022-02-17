@@ -4,7 +4,7 @@ use cosmwasm_std::{
 };
 use std::convert::TryFrom;
 use secret_toolkit::permit::{ Permit, RevokedPermits, SignedPermit}; 
-use crate::msg::{ScoreResponse, QueryWithPermit, HandleMsg, InitMsg, QueryMsg, HandleAnswer, StatsResponse, };
+use crate::msg::{ScoreResponse, QueryWithPermit, HandleMsg, InitMsg, QueryMsg, HandleAnswer, StatsResponse, ResponseStatus };
 use crate::state::{config, Constants, Config,  save, may_load, State, CONFIG_KEY, load, ReadonlyConfig};
 use secp256k1::Secp256k1;
 use sha2::{ Sha256};
@@ -62,7 +62,28 @@ pub fn handle<S: Storage, A: Api, Q: Querier>(
         // HandleMsg::Increment {} => try_increment(deps, env),
         // HandleMsg::Reset { count } => try_reset(deps, env, count),
         HandleMsg::Record { score } => try_record(deps, env, score),
+        HandleMsg::RevokePermit { permit_name, .. } => revoke_permit(deps, env, permit_name),
     }
+}
+
+
+fn revoke_permit<S: Storage, A: Api, Q: Querier>(
+    deps: &mut Extern<S, A, Q>,
+    env: Env,
+    permit_name: String,
+) -> StdResult<HandleResponse> {
+    RevokedPermits::revoke_permit(
+        &mut deps.storage,
+        PREFIX_REVOKED_PERMITS,
+        &env.message.sender,
+        &permit_name,
+    );
+
+    Ok(HandleResponse {
+        messages: vec![],
+        log: vec![],
+        data: Some(to_binary(&HandleAnswer::RevokePermit { status: ResponseStatus::Success })?),
+    })
 }
 
 pub fn try_record<S: Storage, A: Api, Q: Querier>(

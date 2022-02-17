@@ -16,6 +16,19 @@ pub enum HandleMsg {
     Record {
         score: u64
     },
+
+    RevokePermit {
+        permit_name: String,
+        padding: Option<String>,
+    },
+}
+
+
+#[derive(Serialize, Deserialize, Clone, PartialEq, JsonSchema, Debug)]
+#[serde(rename_all = "snake_case")]
+pub enum ResponseStatus {
+    Success,
+    Failure,
 }
 
 #[derive(Serialize, Deserialize, Debug, JsonSchema)]
@@ -29,8 +42,11 @@ pub enum HandleAnswer {
     Read {
         status: String,
         score: Option<u64>,
-    }
-  
+    },
+ 
+    RevokePermit {
+        status: ResponseStatus,
+    },
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
