@@ -59,7 +59,6 @@ pub enum QueryMsg {
     WithPermit {
         permit: Permit,
         query: QueryWithPermit,
-        address: HumanAddr // adding the address of the user 
     }
 }
 
@@ -67,20 +66,13 @@ pub enum QueryMsg {
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
 #[serde(rename_all = "snake_case")]
 pub enum QueryWithPermit {
-    Balance {
-        // address: HumanAddr
-    },
+    Balance {},
 }
 
 impl QueryMsg {
     pub fn get_validation_params(&self) -> Vec<&HumanAddr> {
-
-
-
         match self {
             Self::GetScore { address, .. } => {
-                println!("address: {}", address);
-                println!("validation params : {:?}", vec![address]);
                 vec![address]
             },
             _ => panic!("This query type does not require authentication"),

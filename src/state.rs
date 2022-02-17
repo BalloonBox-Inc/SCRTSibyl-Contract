@@ -13,22 +13,6 @@ pub const KEY_CONSTANTS: &[u8] = b"constants";
 
 #[derive(Serialize, Debug, Deserialize, Clone, PartialEq, JsonSchema)]
 pub struct Constants {
-    // pub name: String,
-    // pub admin: HumanAddr,
-    // pub symbol: String,
-    // pub decimals: u8,
-    // pub prng_seed: Vec<u8>,
-    // // privacy configuration
-    // pub total_supply_is_public: bool,
-    // // is deposit enabled
-    // pub deposit_is_enabled: bool,
-    // // is redeem enabled
-    // pub redeem_is_enabled: bool,
-    // // is mint enabled
-    // pub mint_is_enabled: bool,
-    // // is burn enabled
-    // pub burn_is_enabled: bool,
-    // the address of this contract, used to validate query permits
     pub contract_address: HumanAddr,
 }
 
@@ -116,25 +100,6 @@ pub struct User {
 pub fn config<S: Storage>(storage: &mut S) -> Singleton<S, User> {
     singleton(storage, CONFIG_KEY)
 }
-
-
-
-// pub struct ReadonlyConfig<'a, S: ReadonlyStorage> {
-//     storage: ReadonlyPrefixedStorage<'a, S>,
-// }
-
-
-// impl<'a, S: ReadonlyStorage> ReadonlyConfig<'a, S> {
-//     pub fn from_storage(storage: &'a S) -> Self {
-//         Self {
-//             storage: ReadonlyPrefixedStorage::new(PREFIX_CONFIG, storage),
-//         }
-//     }
-
-//     // pub fn constants(&self) -> StdResult<Constants> {
-//     //     self.as_readonly().constants()
-//     // }
-// }
 
 
 pub fn config_read<S: Storage>(storage: &S) -> ReadonlySingleton<S, User> {

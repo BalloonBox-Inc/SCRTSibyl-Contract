@@ -3,7 +3,7 @@ use cosmwasm_std::{
     StdError, StdResult, Storage, HumanAddr, CanonicalAddr, QueryResult
 };
 use std::convert::TryFrom;
-use secret_toolkit::permit::{ Permit, RevokedPermits, SignedPermit}; 
+use secret_toolkit::permit::{ Permit, RevokedPermits, SignedPermit, Permission}; 
 use crate::msg::{ScoreResponse, QueryWithPermit, HandleMsg, InitMsg, QueryMsg, HandleAnswer, StatsResponse, ResponseStatus };
 use crate::state::{config, Constants, Config,  save, may_load, State, CONFIG_KEY, load, ReadonlyConfig};
 use secp256k1::Secp256k1;
@@ -96,6 +96,11 @@ pub fn try_record<S: Storage, A: Api, Q: Querier>(
 
     save(&mut deps.storage, &sender_address.as_slice().to_vec(), &score)?;
 
+    config(&mut deps.storage).update(|mut state| {
+        state.score += 1;
+        Ok(state)
+    })?;
+
     status = String::from("Score recorded!");
 
     Ok(HandleResponse {
@@ -112,51 +117,18 @@ fn query_read<S: Storage, A: Api, Q: Querier>(
     deps: &Extern<S, A, Q>,
     address: &HumanAddr,
 ) -> StdResult<ScoreResponse> {
-    // let status: String;
-    // let mut score: Option<u64> = None;
-    // let mut timestamp: Option<u64> = None;
 
     let sender_address = deps.api.canonical_address(&address)?;
-
-
-    // read the reminder from storage
     let result: Option<u64> = may_load(&deps.storage, &sender_address.as_slice().to_vec()).ok().unwrap();
 
-  
-
-    // match result {
-    //     // set all response field values
-    //     Some(stored_score) => {
-    //         println!("STORED SCORE IS: {}", stored_score);
-    //         status = String::from("Score found.");
-    //         score = Some(stored_score);
-
-    //         Ok(ScoreResponse {
-    //             score: stored_score,
-    //          })
-    //         // score = Some(stored_score.score);
-    //         // timestamp = Some(stored_score.timestamp);
-    //     }
-    //     // unless there's an error
-    //     None => { status = String::from("Score not found."); }
-    // };
-
-    // to_binary(&QueryAnswer::Read{ score, status })
-    // Ok(StatsResponse {score_count: config.score_count, max_size: config.max_size}) // from stats_query
     Ok(ScoreResponse {
         score: result.unwrap()
     })
-    // Ok(ScoreResponse {
-    //    score: stored_score,
-    // })
 }
 
 fn query_stats<S: Storage, A: Api, Q: Querier>(deps: &Extern<S, A, Q>) ->  StdResult<StatsResponse> {
-    // let state = config_read(&deps.storage).load()?;
-
     let config: State = load(&deps.storage, CONFIG_KEY)?;
     Ok(StatsResponse {score_count: config.score_count, max_size: config.max_size})
-    // to_binary(&QueryAnswer::Stats{ score_count: config.score_count, max_size: config.max_size })
 }
 
 pub fn try_increment<S: Storage, A: Api, Q: Querier>(
@@ -173,36 +145,16 @@ pub fn try_increment<S: Storage, A: Api, Q: Querier>(
     Ok(HandleResponse::default())
 }
 
-// pub fn try_reset<S: Storage, A: Api, Q: Querier>(
-//     deps: &mut Extern<S, A, Q>,
-//     env: Env,
-//     score: i32,
-// ) -> StdResult<HandleResponse> {
-//     let sender_address_raw = deps.api.canonical_address(&env.message.sender)?;
-//     config(&mut deps.storage).update(|mut state| {
-//         if sender_address_raw != state.address {
-//             return Err(StdError::Unauthorized { backtrace: None });
-//         }
-//         state.score = score;
-//         Ok(state)
-//     })?;
-//     debug_print("count reset successfully");
-//     Ok(HandleResponse::default())
-// }
 
 pub fn query<S: Storage, A: Api, Q: Querier>(
     deps: &Extern<S, A, Q>,
     msg: QueryMsg,
 ) -> QueryResult {
 
-
-
     match msg {
-        // QueryMsg::GetScore {} => to_binary(&query_count(deps)?),
-        // QueryMsg::GetCount {} => to_binary(&query_stats(deps)?),
         QueryMsg::GetStats {} => to_binary(&query_stats(deps)?), // get the max_length allowed and the count 
         QueryMsg::GetScore { address } => to_binary(&query_read(&deps, &address)?),
-        QueryMsg::WithPermit {permit, query, address}  => permit_queries(deps, permit, query, &address),
+        QueryMsg::WithPermit {permit, query}  => permit_queries(deps, permit, query),
     }
 }
 
@@ -221,9 +173,6 @@ pub fn sha_256(data: &[u8]) -> [u8; SHA256_HASH_SIZE] {
     result.copy_from_slice(hash.as_slice());
     result
 }
-
-
-
 
 
 pub fn validate<S: Storage, A: Api, Q: Querier>(
@@ -273,13 +222,13 @@ pub fn validate<S: Storage, A: Api, Q: Querier>(
 
     let secp256k1_verifier = Secp256k1::verification_only();
 
-    let secp256k1_signature = secp256k1::Signature::from_compact(&permit.signature.signature.0)
+    let secp256k1_signature = secp256k1::ecdsa::Signature::from_compact(&permit.signature.signature.0)
         .map_err(|err| StdError::generic_err(format!("Malformed signature: {:?}", err)))?;
     let secp256k1_pubkey = secp256k1::PublicKey::from_slice(pubkey.0.as_slice())
         .map_err(|err| StdError::generic_err(format!("Malformed pubkey: {:?}", err)))?;
 
     secp256k1_verifier
-        .verify(&secp256k1_msg, &secp256k1_signature, &secp256k1_pubkey)
+        .verify_ecdsa(&secp256k1_msg, &secp256k1_signature, &secp256k1_pubkey)
         .map_err(|err| {
             StdError::generic_err(format!(
                 "Failed to verify signatures for the given permit: {:?}",
@@ -296,7 +245,6 @@ fn permit_queries<S: Storage, A: Api, Q: Querier>(
     deps: &Extern<S, A, Q>,
     permit: Permit,
     query: QueryWithPermit,
-    address: &HumanAddr
 ) -> Result<Binary, StdError> {
 
        // Validate permit content
@@ -314,52 +262,15 @@ fn permit_queries<S: Storage, A: Api, Q: Querier>(
     // Permit validated! We can now execute the query.
     match query {
         QueryWithPermit::Balance {} => {
-            // if !permit.check_permission(&Permission::Balance) {
-            //     return Err(StdError::generic_err(format!(
-            //         "No permission to query balance, got permissions {:?}",
-            //         permit.params.permissions
-            //     )));
-            // }
+            if !permit.check_permission(&Permission::Balance) {
+                return Err(StdError::generic_err(format!(
+                    "No permission to query balance (score), got permissions {:?}",
+                    permit.params.permissions
+                )));
+            }
 
-            to_binary(&query_read(&deps, &address))
+            to_binary(&query_read(&deps, &account))
         }
-        // QueryWithPermit::TransferHistory { page, page_size } => {
-        //     if !permit.check_permission(&Permission::History) {
-        //         return Err(StdError::generic_err(format!(
-        //             "No permission to query history, got permissions {:?}",
-        //             permit.params.permissions
-        //         )));
-        //     }
-
-        //     query_transfers(deps, &account, page.unwrap_or(0), page_size)
-        // }
-        // QueryWithPermit::TransactionHistory { page, page_size } => {
-        //     if !permit.check_permission(&Permission::History) {
-        //         return Err(StdError::generic_err(format!(
-        //             "No permission to query history, got permissions {:?}",
-        //             permit.params.permissions
-        //         )));
-        //     }
-
-        //     query_transactions(deps, &account, page.unwrap_or(0), page_size)
-        // }
-        // QueryWithPermit::Allowance { address } => {
-        //     if !permit.check_permission(&Permission::Allowance) {
-        //         return Err(StdError::generic_err(format!(
-        //             "No permission to query allowance, got permissions {:?}",
-        //             permit.params.permissions
-        //         )));
-        //     }
-
-        //     if account != owner && account != spender {
-        //         return Err(StdError::generic_err(format!(
-        //             "Cannot query allowance. Requires permit for either owner {:?} or spender {:?}, got permit for {:?}",
-        //             owner.as_str(), spender.as_str(), account.as_str()
-        //         )));
-        //     }
-
-        //     query_allowance(deps, owner, spender)
-        // }
     }
 }
 
@@ -466,25 +377,6 @@ mod tests {
         // assert_eq!(300, value.score);
     // }
 
-  
-    // #[test]
-    // fn increment() {
-    //     let mut deps = mock_dependencies(20, &coins(2, "token"));
-
-    //     let msg = InitMsg { score: 17 };
-    //     let env = mock_env("creator", &coins(2, "token"));
-    //     let _res = init(&mut deps, env, msg).unwrap();
-
-    //     // anyone can increment
-    //     let env = mock_env("anyone", &coins(2, "token"));
-    //     let msg = HandleMsg::Increment {};
-    //     let _res = handle(&mut deps, env, msg).unwrap();
-
-    //     // should increase counter by 1
-    //     let res = query(&deps, QueryMsg::GetScore {}).unwrap();
-    //     let value: ScoreResponse = from_binary(&res).unwrap();
-    //     assert_eq!(18, value.score);
-    // }
 
     // #[test]
     // fn reset() {
