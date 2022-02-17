@@ -1,6 +1,6 @@
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
-use cosmwasm_std::{HumanAddr};
+use cosmwasm_std::{HumanAddr, StdResult};
 use secret_toolkit::permit::Permit;
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
@@ -15,6 +15,11 @@ pub enum HandleMsg {
     // Reset { count: i32 },
     Record {
         score: u64
+    },
+
+    WithPermit {
+        permit: Permit,
+        query: QueryWithPermit,
     },
 
     RevokePermit {
@@ -47,6 +52,10 @@ pub enum HandleAnswer {
     RevokePermit {
         status: ResponseStatus,
     },
+
+    PermitHandle {
+        data: StdResult<ScoreResponse>
+    }
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]

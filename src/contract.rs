@@ -63,7 +63,48 @@ pub fn handle<S: Storage, A: Api, Q: Querier>(
         // HandleMsg::Reset { count } => try_reset(deps, env, count),
         HandleMsg::Record { score } => try_record(deps, env, score),
         HandleMsg::RevokePermit { permit_name, .. } => revoke_permit(deps, env, permit_name),
+        HandleMsg::WithPermit {permit, query}  => permit_handle(deps, permit, query, env),
     }
+}
+
+
+fn permit_handle<S: Storage, A: Api, Q: Querier>(
+    deps: &Extern<S, A, Q>,
+    permit: Permit,
+    query: QueryWithPermit,
+    env: Env
+) -> StdResult<HandleResponse> {
+
+       // Validate permit content
+       let token_address = ReadonlyConfig::from_storage(&deps.storage)
+       .constants()?
+       .contract_address;
+
+    if env.message.sender.to_string() != permit.params.permit_name {
+        return Err(StdError::generic_err(format!("Permission for this sender has not been authorized.")))
+    }
+   
+    let account = validate(deps, PREFIX_REVOKED_PERMITS, &permit, token_address)?;
+    
+    // Permit validated! We can now execute the query.
+    match query {
+        QueryWithPermit::Balance {} => {
+            if !permit.check_permission(&Permission::Balance) {
+                return Err(StdError::generic_err(format!(
+                    "No permission to query balance (score), got permissions {:?}",
+                    permit.params.permissions
+                )));
+            }
+        }
+    }
+
+    Ok(HandleResponse {
+        messages: vec![],
+        log: vec![],
+        // data: Some(to_binary(&HandleAnswer::RevokePermit { status: ResponseStatus::Success })?),
+        data: Some(to_binary(&HandleAnswer::PermitHandle {data: query_read(&deps, &account) })?),
+    })
+    // to_binary(&query_read(&deps, &account))
 }
 
 
@@ -96,10 +137,14 @@ pub fn try_record<S: Storage, A: Api, Q: Querier>(
 
     save(&mut deps.storage, &sender_address.as_slice().to_vec(), &score)?;
 
-    config(&mut deps.storage).update(|mut state| {
-        state.score += 1;
-        Ok(state)
-    })?;
+
+    let state = query_stats(&deps).unwrap();
+
+    let new_state = State {
+        max_size: state.max_size,
+        score_count: state.score_count + 1,
+    };
+    save(&mut deps.storage, CONFIG_KEY, &new_state)?;
 
     status = String::from("Score recorded!");
 
@@ -128,6 +173,7 @@ fn query_read<S: Storage, A: Api, Q: Querier>(
 
 fn query_stats<S: Storage, A: Api, Q: Querier>(deps: &Extern<S, A, Q>) ->  StdResult<StatsResponse> {
     let config: State = load(&deps.storage, CONFIG_KEY)?;
+    println!("CONFIG FROM QUERY_STATS IS: {:?} ", config);
     Ok(StatsResponse {score_count: config.score_count, max_size: config.max_size})
 }
 
@@ -135,6 +181,7 @@ pub fn try_increment<S: Storage, A: Api, Q: Querier>(
     deps: &mut Extern<S, A, Q>,
     _env: Env,
 ) -> StdResult<HandleResponse> {
+    
     config(&mut deps.storage).update(|mut state| {
         state.score += 1;
         debug_print!("count = {}", state.score);
@@ -149,6 +196,7 @@ pub fn try_increment<S: Storage, A: Api, Q: Querier>(
 pub fn query<S: Storage, A: Api, Q: Querier>(
     deps: &Extern<S, A, Q>,
     msg: QueryMsg,
+    // env: Env
 ) -> QueryResult {
 
     match msg {
@@ -245,6 +293,7 @@ fn permit_queries<S: Storage, A: Api, Q: Querier>(
     deps: &Extern<S, A, Q>,
     permit: Permit,
     query: QueryWithPermit,
+    // env: Env
 ) -> Result<Binary, StdError> {
 
        // Validate permit content
@@ -253,11 +302,12 @@ fn permit_queries<S: Storage, A: Api, Q: Querier>(
        .contract_address;
     
 
-    // let token_address = address.clone();
+    // if permit.params.permit_name != env.message.sender.to_string() {
+    //     return Err(StdError::generic_err("Sender does not have authorization to query this score."))
+    // } 
 
+   
     let account = validate(deps, PREFIX_REVOKED_PERMITS, &permit, token_address)?;
-
-    println!("ACCOUNT RETURNED FROM VALIDATE IS: {}", account);
 
     // Permit validated! We can now execute the query.
     match query {
@@ -281,45 +331,56 @@ mod tests {
     use cosmwasm_std::testing::{mock_dependencies, mock_env};
     use cosmwasm_std::{coins, from_binary};
 
+    // #[test]
+    // fn proper_initialization() {
+    //     let mut deps = mock_dependencies(20, &[]);
+
+    //     let msg = InitMsg { max_size: 10000 };
+    //     let env = mock_env("creator", &coins(1000, "earth"));
+
+    //     // we can just call .unwrap() to assert this was a success
+    //     let res = init(&mut deps, env, msg).unwrap();
+    //     assert_eq!(0, res.messages.len());
+        
+    //     // Query the stats 
+    //     let res = query(&deps, QueryMsg::GetStats {}).unwrap();
+    //     let value: StatsResponse = from_binary(&res).unwrap();
+    //     assert_eq!(10000, value.max_size);
+    // }
+
     #[test]
-    fn proper_initialization() {
-        let mut deps = mock_dependencies(20, &[]);
-
-        let msg = InitMsg { max_size: 10000 };
-        let env = mock_env("creator", &coins(1000, "earth"));
-
-        // we can just call .unwrap() to assert this was a success
-        let res = init(&mut deps, env, msg).unwrap();
+    fn init_recore_query() {
+        // First we init
+        let mut deps = mock_dependencies(20, &coins(2, "token"));
+        let init_msg = InitMsg { max_size: 10000 };
+        let env = mock_env("creator", &coins(20, "token"));
+        let res = init(&mut deps, env, init_msg).unwrap();
         assert_eq!(0, res.messages.len());
         
-        // Query the stats 
+        
+        // WE RECORD THE SCORE
+        let _env = mock_env("creator", &coins(20, "token"));
+        let msg = HandleMsg::Record {score: 300};
+        let record_res = handle(&mut deps, _env, msg).unwrap();
+        assert_eq!(0, record_res.messages.len());
+        
+        
+        // NEXT WE QUERY THE SCORE 
+        let query_env = mock_env("creator", &coins(20, "token"));
+        let query_msg = QueryMsg::GetScore { address: query_env.message.sender };
+        
+        let res = query(&deps, query_msg).unwrap(); 
+        let value: ScoreResponse = from_binary(&res).unwrap();
+        println!("RUNNING SECOND TEST");
+
+        assert_eq!(300, value.score);
+
+       // Query the stats 
         let res = query(&deps, QueryMsg::GetStats {}).unwrap();
         let value: StatsResponse = from_binary(&res).unwrap();
         assert_eq!(10000, value.max_size);
     }
-
-    #[test]
-    fn handle_record() {
-        // FIRST WE RECORD THE SCORE
-        let mut deps = mock_dependencies(20, &coins(2, "token"));
-        let env = mock_env("creator", &coins(20, "token"));
-
-        // let sender_address = deps.api.canonical_address(&address)?;
-        let msg = HandleMsg::Record {score: 300};
-        // let (addresses, key) = msg.get_validation_params();
-        let record_res = handle(&mut deps, env, msg).unwrap();
-        assert_eq!(0, record_res.messages.len());
-
-
-        // NEXT WE QUERY THE SCORE 
-        let query_env = mock_env("creator", &coins(20, "token"));
-        let query_msg = QueryMsg::GetScore { address: query_env.message.sender };
-        let res = query(&deps, query_msg).unwrap(); 
-        let value: ScoreResponse = from_binary(&res).unwrap();
-
-        assert_eq!(300, value.score);
-    }
-
+    
 
     // #[test]
     // fn handle_permit_query() {
