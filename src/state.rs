@@ -127,7 +127,17 @@ pub fn may_load<T: DeserializeOwned, S: ReadonlyStorage>(storage: &S, key: &[u8]
         },  
         None => {
             panic!("No score found.")
-            // Ok(None)
+        },
+    }
+}
+
+pub fn does_user_exist<S: ReadonlyStorage>(storage: &S, key: &[u8]) -> bool {
+    match storage.get(key) {
+        Some(_value) => {
+            true
+        },  
+        None => {
+           false
         },
     }
 }

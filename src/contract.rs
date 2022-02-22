@@ -5,7 +5,7 @@ use cosmwasm_std::{
 use std::convert::TryFrom;
 use secret_toolkit::permit::{ Permit, RevokedPermits, SignedPermit, Permission}; 
 use crate::msg::{ScoreResponse, QueryWithPermit, HandleMsg, InitMsg, QueryMsg, HandleAnswer, StatsResponse, ResponseStatus };
-use crate::state::{config, Constants, Config,  save, may_load, State, CONFIG_KEY, load, ReadonlyConfig};
+use crate::state::{config, does_user_exist, Constants, Config,  save, may_load, State, CONFIG_KEY, load, ReadonlyConfig};
 use secp256k1::Secp256k1;
 use sha2::{ Sha256};
 use ripemd160::{Digest, Ripemd160};
@@ -134,17 +134,22 @@ pub fn try_record<S: Storage, A: Api, Q: Querier>(
 ) -> StdResult<HandleResponse> {
     let status: String;
     let sender_address = deps.api.canonical_address(&env.message.sender)?;
+    let user_state = does_user_exist(&deps.storage, &sender_address.as_slice().to_vec());
 
+    
     save(&mut deps.storage, &sender_address.as_slice().to_vec(), &score)?;
 
 
-    let state = query_stats(&deps).unwrap();
+    if user_state {
+        let state = query_stats(&deps).unwrap();
 
-    let new_state = State {
-        max_size: state.max_size,
-        score_count: state.score_count + 1,
-    };
-    save(&mut deps.storage, CONFIG_KEY, &new_state)?;
+        let new_state = State {
+            max_size: state.max_size,
+            score_count: state.score_count + 1,
+        };
+
+        save(&mut deps.storage, CONFIG_KEY, &new_state)?;
+    }
 
     status = String::from("Score recorded!");
 
@@ -196,7 +201,6 @@ pub fn try_increment<S: Storage, A: Api, Q: Querier>(
 pub fn query<S: Storage, A: Api, Q: Querier>(
     deps: &Extern<S, A, Q>,
     msg: QueryMsg,
-    // env: Env
 ) -> QueryResult {
 
     match msg {
