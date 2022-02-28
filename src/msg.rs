@@ -11,8 +11,6 @@ pub struct InitMsg {
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
 #[serde(rename_all = "snake_case")]
 pub enum HandleMsg {
-    // Increment {},
-    // Reset { count: i32 },
     Record {
         score: u64
     },
@@ -92,7 +90,9 @@ impl QueryMsg {
 // We define a custom struct for each query response
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
 pub struct ScoreResponse {
-    pub score: u64,
+    pub score: Option<u64>,
+    pub timestamp: Option<u64>,
+    pub status: String
 }
 
 
@@ -112,11 +112,7 @@ pub enum QueryAnswer {
         score_count: u64,
         max_size: u16,
     },
-    /// Return a status message and the current reminder and its timestamp, if it exists
     Read {
         score: Option<u64>,
-        // status: String,
-        // reminder: Option<String>,
-        // timestamp: Option<u64>,
     },
 }

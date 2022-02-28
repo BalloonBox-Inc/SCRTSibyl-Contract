@@ -112,7 +112,6 @@ pub fn save<T: Serialize, S: Storage>(storage: &mut S, key: &[u8], value: &T) ->
 }
 
 pub fn load<T: DeserializeOwned, S: ReadonlyStorage>(storage: &S, key: &[u8]) -> StdResult<T> {
-    // println!("storage is: {:?}", storage.get(key));
     Bincode2::deserialize(
         &storage
             .get(key)
@@ -126,7 +125,7 @@ pub fn may_load<T: DeserializeOwned, S: ReadonlyStorage>(storage: &S, key: &[u8]
             Bincode2::deserialize(&value[..]).map(Some)
         },  
         None => {
-            panic!("No score found.")
+            Ok(None)
         },
     }
 }

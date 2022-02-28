@@ -5,7 +5,7 @@ use cosmwasm_std::{
 use std::convert::TryFrom;
 use secret_toolkit::permit::{ Permit, RevokedPermits, SignedPermit, Permission}; 
 use crate::msg::{ScoreResponse, QueryWithPermit, HandleMsg, InitMsg, QueryMsg, HandleAnswer, StatsResponse, ResponseStatus };
-use crate::state::{config, does_user_exist, Constants, Config,  save, may_load, State, CONFIG_KEY, load, ReadonlyConfig};
+use crate::state::{User, config, does_user_exist, Constants, Config,  save, may_load, State, CONFIG_KEY, load, ReadonlyConfig};
 use secp256k1::Secp256k1;
 use sha2::{ Sha256};
 use ripemd160::{Digest, Ripemd160};
@@ -136,8 +136,13 @@ pub fn try_record<S: Storage, A: Api, Q: Querier>(
     let sender_address = deps.api.canonical_address(&env.message.sender)?;
     let user_state = does_user_exist(&deps.storage, &sender_address.as_slice().to_vec());
 
+     // create the User struct containing score  and timestamp
+     let stored_score = User {
+        score: score,
+        timestamp: env.block.time
+    };
     
-    save(&mut deps.storage, &sender_address.as_slice().to_vec(), &score)?;
+    save(&mut deps.storage, &sender_address.as_slice().to_vec(), &stored_score)?;
 
 
     if user_state {
@@ -167,12 +172,30 @@ fn query_read<S: Storage, A: Api, Q: Querier>(
     deps: &Extern<S, A, Q>,
     address: &HumanAddr,
 ) -> StdResult<ScoreResponse> {
-
+    let status: String;
+    let mut score: Option<u64> = None;
+    let mut timestamp: Option<u64> = None;
     let sender_address = deps.api.canonical_address(&address)?;
-    let result: Option<u64> = may_load(&deps.storage, &sender_address.as_slice().to_vec()).ok().unwrap();
+    let result: Option<User> = may_load(&deps.storage, &sender_address.as_slice().to_vec()).ok().unwrap();
+
+    match result {
+        Some(stored_score) => {
+            score = Some(stored_score.score);
+            timestamp = Some(stored_score.timestamp);
+            status = String::from("Score found.");
+        }
+        None => { 
+            status = String::from("Reminder not found."); 
+            return Ok(ScoreResponse {
+                status, timestamp, score
+            })
+        } 
+    }
 
     Ok(ScoreResponse {
-        score: result.unwrap()
+        score: score,
+        timestamp: timestamp,
+        status: status
     })
 }
 
@@ -335,22 +358,6 @@ mod tests {
     use cosmwasm_std::testing::{mock_dependencies, mock_env};
     use cosmwasm_std::{coins, from_binary};
 
-    // #[test]
-    // fn proper_initialization() {
-    //     let mut deps = mock_dependencies(20, &[]);
-
-    //     let msg = InitMsg { max_size: 10000 };
-    //     let env = mock_env("creator", &coins(1000, "earth"));
-
-    //     // we can just call .unwrap() to assert this was a success
-    //     let res = init(&mut deps, env, msg).unwrap();
-    //     assert_eq!(0, res.messages.len());
-        
-    //     // Query the stats 
-    //     let res = query(&deps, QueryMsg::GetStats {}).unwrap();
-    //     let value: StatsResponse = from_binary(&res).unwrap();
-    //     assert_eq!(10000, value.max_size);
-    // }
 
     #[test]
     fn init_recore_query() {
@@ -375,9 +382,8 @@ mod tests {
         
         let res = query(&deps, query_msg).unwrap(); 
         let value: ScoreResponse = from_binary(&res).unwrap();
-        println!("RUNNING SECOND TEST");
 
-        assert_eq!(300, value.score);
+        assert_eq!(300, value.score.unwrap());
 
        // Query the stats 
         let res = query(&deps, QueryMsg::GetStats {}).unwrap();
@@ -385,64 +391,6 @@ mod tests {
         assert_eq!(10000, value.max_size);
     }
     
-
-    // #[test]
-    // fn handle_permit_query() {
-    //     // FIRST WE RECORD THE SCORE
-
-    //     let mut deps = mock_dependencies(20, &coins(2, "token"));
-    //     let name = HumanAddr("1nl7dnjcs9w2a4mn4q43nwyptf3uyllp3xh44j".to_string());
-    //     let env = mock_env(name, &coins(20, "token"));
-
-    //     // let sender_address = deps.api.canonical_address(&address)?;
-    //     let msg = HandleMsg::Record {score: 300};
-    //     // let (addresses, key) = msg.get_validation_params();
-    //     let record_res = handle(&mut deps, env, msg).unwrap();
-
-    //     println!("Record_res {:?}", record_res);
-        
-        // assert_eq!(0, record_res.messages.len());
-
-        // let serv_addy_cannonical = deps.api.canonical_address(&env.message.sender);
-
-        // let _env = mock_env("secret1nl7dnjcs9w2a4mn4q43nwyptf3uyllp3xh44j0", &coins(20, "token"));
-
-        // println!("serv addy {:?}", deps.api.canonical_address(&_env.message.sender));
-        // println!("Env is: {:?}", _env);
-
-        // NEXT WE QUERY THE SCORE 
-
-        // let permit_name = "secretswap.io";
-        // let address = HumanAddr(String::from("USER"));
-        // let query = QueryWithPermit::Balance {};
-
-        
-
-        // let permit = Permit { 
-        //         params: PermitParams {
-        //             allowed_tokens: vec![HumanAddr("NOT_USER".to_string())], 
-        //             chain_id: "pulsar-2".to_string(), 
-        //             permit_name: "secretswap.io".to_string(),
-        //             permissions: vec![Permission::Balance {}]
-        //           },
-        //         signature: PermitSignature {
-        //             pub_key: PubKey {
-        //                 r#type: "tendermint/PubKeySecp256k1".to_string(),
-        //                 value: to_binary("A9v535BWGzflIDgA+zepnCxuB5N3y6FJwR/jd3rIB0Ed").unwrap(),
-        //              }, 
-        //             signature: to_binary("2znOOKNqU1GwwrrICD8Sm7/SVQ+DcWt4Hwig+xluuTUx3EhajuNd+ds5Fqox6kWg37plpVezAo6ZtZ+iwe6KUA==").unwrap(),
-        //             }
-        //         }; 
-        // let query_msg = QueryMsg::WithPermit { permit , query: QueryWithPermit::Balance {}, address };
-
-                
-        // let res = query(&deps, query_msg).unwrap(); 
-        // let value: ScoreResponse = from_binary(&res).unwrap();
-
-        // assert_eq!(300, value.score);
-    // }
-
-
     // #[test]
     // fn reset() {
     //     let mut deps = mock_dependencies(20, &coins(2, "token"));
