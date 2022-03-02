@@ -1,14 +1,20 @@
-use cosmwasm_std::{
-    debug_print, to_binary, Api, Binary, Env, Extern, HandleResponse, InitResponse, Querier,
-    StdError, StdResult, Storage, HumanAddr, CanonicalAddr, QueryResult
+use crate::msg::{
+    HandleAnswer, HandleMsg, InitMsg, QueryMsg, QueryWithPermit, ResponseStatus, ScoreResponse,
+    StatsResponse,
 };
-use std::convert::TryFrom;
-use secret_toolkit::permit::{ Permit, RevokedPermits, SignedPermit, Permission}; 
-use crate::msg::{ScoreResponse, QueryWithPermit, HandleMsg, InitMsg, QueryMsg, HandleAnswer, StatsResponse, ResponseStatus };
-use crate::state::{User, config, does_user_exist, Constants, Config,  save, may_load, State, CONFIG_KEY, load, ReadonlyConfig};
-use secp256k1::Secp256k1;
-use sha2::{ Sha256};
+use crate::state::{
+    config, does_user_exist, load, may_load, save, Config, Constants, ReadonlyConfig, State, User,
+    CONFIG_KEY,
+};
+use cosmwasm_std::{
+    debug_print, to_binary, Api, Binary, CanonicalAddr, Env, Extern, HandleResponse, HumanAddr,
+    InitResponse, Querier, QueryResult, StdError, StdResult, Storage,
+};
 use ripemd160::{Digest, Ripemd160};
+use secp256k1::Secp256k1;
+use secret_toolkit::permit::{Permission, Permit, RevokedPermits, SignedPermit};
+use sha2::Sha256;
+use std::convert::TryFrom;
 
 pub const PREFIX_REVOKED_PERMITS: &str = "revoked_permits";
 pub const SHA256_HASH_SIZE: usize = 32;
@@ -18,10 +24,13 @@ pub fn init<S: Storage, A: Api, Q: Querier>(
     env: Env,
     msg: InitMsg,
 ) -> StdResult<InitResponse> {
-    
     let max_size = match valid_max_size(msg.max_size) {
         Some(v) => v,
-        None => return Err(StdError::generic_err("Invalid max_size. Must be in the range of 1..65535."))
+        None => {
+            return Err(StdError::generic_err(
+                "Invalid max_size. Must be in the range of 1..65535.",
+            ))
+        }
     };
 
     let state = State {
@@ -37,8 +46,6 @@ pub fn init<S: Storage, A: Api, Q: Querier>(
     config.set_constants(&Constants {
         contract_address: env.contract.address,
     })?;
-
-
 
     Ok(InitResponse::default())
 }
@@ -57,35 +64,34 @@ pub fn handle<S: Storage, A: Api, Q: Querier>(
     env: Env,
     msg: HandleMsg,
 ) -> StdResult<HandleResponse> {
-   
     match msg {
         // HandleMsg::Increment {} => try_increment(deps, env),
         // HandleMsg::Reset { count } => try_reset(deps, env, count),
         HandleMsg::Record { score } => try_record(deps, env, score),
         HandleMsg::RevokePermit { permit_name, .. } => revoke_permit(deps, env, permit_name),
-        HandleMsg::WithPermit {permit, query}  => permit_handle(deps, permit, query, env),
+        HandleMsg::WithPermit { permit, query } => permit_handle(deps, permit, query, env),
     }
 }
-
 
 fn permit_handle<S: Storage, A: Api, Q: Querier>(
     deps: &Extern<S, A, Q>,
     permit: Permit,
     query: QueryWithPermit,
-    env: Env
+    env: Env,
 ) -> StdResult<HandleResponse> {
-
-       // Validate permit content
-       let token_address = ReadonlyConfig::from_storage(&deps.storage)
-       .constants()?
-       .contract_address;
+    // Validate permit content
+    let token_address = ReadonlyConfig::from_storage(&deps.storage)
+        .constants()?
+        .contract_address;
 
     if env.message.sender.to_string() != permit.params.permit_name {
-        return Err(StdError::generic_err(format!("Permission for this sender has not been authorized.")))
+        return Err(StdError::generic_err(format!(
+            "Permission for this sender has not been authorized."
+        )));
     }
-   
+
     let account = validate(deps, PREFIX_REVOKED_PERMITS, &permit, token_address)?;
-    
+
     // Permit validated! We can now execute the query.
     match query {
         QueryWithPermit::Balance {} => {
@@ -102,11 +108,12 @@ fn permit_handle<S: Storage, A: Api, Q: Querier>(
         messages: vec![],
         log: vec![],
         // data: Some(to_binary(&HandleAnswer::RevokePermit { status: ResponseStatus::Success })?),
-        data: Some(to_binary(&HandleAnswer::PermitHandle {data: query_read(&deps, &account) })?),
+        data: Some(to_binary(&HandleAnswer::PermitHandle {
+            data: query_read(&deps, &account),
+        })?),
     })
     // to_binary(&query_read(&deps, &account))
 }
-
 
 fn revoke_permit<S: Storage, A: Api, Q: Querier>(
     deps: &mut Extern<S, A, Q>,
@@ -123,7 +130,9 @@ fn revoke_permit<S: Storage, A: Api, Q: Querier>(
     Ok(HandleResponse {
         messages: vec![],
         log: vec![],
-        data: Some(to_binary(&HandleAnswer::RevokePermit { status: ResponseStatus::Success })?),
+        data: Some(to_binary(&HandleAnswer::RevokePermit {
+            status: ResponseStatus::Success,
+        })?),
     })
 }
 
@@ -136,14 +145,17 @@ pub fn try_record<S: Storage, A: Api, Q: Querier>(
     let sender_address = deps.api.canonical_address(&env.message.sender)?;
     let user_state = does_user_exist(&deps.storage, &sender_address.as_slice().to_vec());
 
-     // create the User struct containing score  and timestamp
-     let stored_score = User {
+    // create the User struct containing score  and timestamp
+    let stored_score = User {
         score: score,
-        timestamp: env.block.time
+        timestamp: env.block.time,
     };
-    
-    save(&mut deps.storage, &sender_address.as_slice().to_vec(), &stored_score)?;
 
+    save(
+        &mut deps.storage,
+        &sender_address.as_slice().to_vec(),
+        &stored_score,
+    )?;
 
     if user_state {
         let state = query_stats(&deps).unwrap();
@@ -161,12 +173,9 @@ pub fn try_record<S: Storage, A: Api, Q: Querier>(
     Ok(HandleResponse {
         messages: vec![],
         log: vec![],
-        data: Some(to_binary(&HandleAnswer::Record {
-            status,
-        })?),
+        data: Some(to_binary(&HandleAnswer::Record { status })?),
     })
 }
-
 
 fn query_read<S: Storage, A: Api, Q: Querier>(
     deps: &Extern<S, A, Q>,
@@ -176,7 +185,9 @@ fn query_read<S: Storage, A: Api, Q: Querier>(
     let mut score: Option<u64> = None;
     let mut timestamp: Option<u64> = None;
     let sender_address = deps.api.canonical_address(&address)?;
-    let result: Option<User> = may_load(&deps.storage, &sender_address.as_slice().to_vec()).ok().unwrap();
+    let result: Option<User> = may_load(&deps.storage, &sender_address.as_slice().to_vec())
+        .ok()
+        .unwrap();
 
     match result {
         Some(stored_score) => {
@@ -184,32 +195,36 @@ fn query_read<S: Storage, A: Api, Q: Querier>(
             timestamp = Some(stored_score.timestamp);
             status = String::from("Score found.");
         }
-        None => { 
-            status = String::from("Reminder not found."); 
+        None => {
+            status = String::from("Reminder not found.");
             return Ok(ScoreResponse {
-                status, timestamp, score
-            })
-        } 
+                status,
+                timestamp,
+                score,
+            });
+        }
     }
 
     Ok(ScoreResponse {
         score: score,
         timestamp: timestamp,
-        status: status
+        status: status,
     })
 }
 
-fn query_stats<S: Storage, A: Api, Q: Querier>(deps: &Extern<S, A, Q>) ->  StdResult<StatsResponse> {
+fn query_stats<S: Storage, A: Api, Q: Querier>(deps: &Extern<S, A, Q>) -> StdResult<StatsResponse> {
     let config: State = load(&deps.storage, CONFIG_KEY)?;
     println!("CONFIG FROM QUERY_STATS IS: {:?} ", config);
-    Ok(StatsResponse {score_count: config.score_count, max_size: config.max_size})
+    Ok(StatsResponse {
+        score_count: config.score_count,
+        max_size: config.max_size,
+    })
 }
 
 pub fn try_increment<S: Storage, A: Api, Q: Querier>(
     deps: &mut Extern<S, A, Q>,
     _env: Env,
 ) -> StdResult<HandleResponse> {
-    
     config(&mut deps.storage).update(|mut state| {
         state.score += 1;
         debug_print!("count = {}", state.score);
@@ -220,16 +235,11 @@ pub fn try_increment<S: Storage, A: Api, Q: Querier>(
     Ok(HandleResponse::default())
 }
 
-
-pub fn query<S: Storage, A: Api, Q: Querier>(
-    deps: &Extern<S, A, Q>,
-    msg: QueryMsg,
-) -> QueryResult {
-
+pub fn query<S: Storage, A: Api, Q: Querier>(deps: &Extern<S, A, Q>, msg: QueryMsg) -> QueryResult {
     match msg {
-        QueryMsg::GetStats {} => to_binary(&query_stats(deps)?), // get the max_length allowed and the count 
+        QueryMsg::GetStats {} => to_binary(&query_stats(deps)?), // get the max_length allowed and the count
         QueryMsg::GetScore { address } => to_binary(&query_read(&deps, &address)?),
-        QueryMsg::WithPermit {permit, query}  => permit_queries(deps, permit, query),
+        QueryMsg::WithPermit { permit, query } => permit_queries(deps, permit, query),
     }
 }
 
@@ -248,7 +258,6 @@ pub fn sha_256(data: &[u8]) -> [u8; SHA256_HASH_SIZE] {
     result.copy_from_slice(hash.as_slice());
     result
 }
-
 
 pub fn validate<S: Storage, A: Api, Q: Querier>(
     deps: &Extern<S, A, Q>,
@@ -275,7 +284,7 @@ pub fn validate<S: Storage, A: Api, Q: Querier>(
 
     // Validate permit_name
     let permit_name = &permit.params.permit_name;
-    let is_permit_revoked = 
+    let is_permit_revoked =
         RevokedPermits::is_permit_revoked(&deps.storage, storage_prefix, &account, permit_name);
     if is_permit_revoked {
         return Err(StdError::generic_err(format!(
@@ -297,8 +306,9 @@ pub fn validate<S: Storage, A: Api, Q: Querier>(
 
     let secp256k1_verifier = Secp256k1::verification_only();
 
-    let secp256k1_signature = secp256k1::ecdsa::Signature::from_compact(&permit.signature.signature.0)
-        .map_err(|err| StdError::generic_err(format!("Malformed signature: {:?}", err)))?;
+    let secp256k1_signature =
+        secp256k1::ecdsa::Signature::from_compact(&permit.signature.signature.0)
+            .map_err(|err| StdError::generic_err(format!("Malformed signature: {:?}", err)))?;
     let secp256k1_pubkey = secp256k1::PublicKey::from_slice(pubkey.0.as_slice())
         .map_err(|err| StdError::generic_err(format!("Malformed pubkey: {:?}", err)))?;
 
@@ -314,26 +324,21 @@ pub fn validate<S: Storage, A: Api, Q: Querier>(
     Ok(account)
 }
 
-
-
 fn permit_queries<S: Storage, A: Api, Q: Querier>(
     deps: &Extern<S, A, Q>,
     permit: Permit,
     query: QueryWithPermit,
     // env: Env
 ) -> Result<Binary, StdError> {
-
-       // Validate permit content
-       let token_address = ReadonlyConfig::from_storage(&deps.storage)
-       .constants()?
-       .contract_address;
-    
+    // Validate permit content
+    let token_address = ReadonlyConfig::from_storage(&deps.storage)
+        .constants()?
+        .contract_address;
 
     // if permit.params.permit_name != env.message.sender.to_string() {
     //     return Err(StdError::generic_err("Sender does not have authorization to query this score."))
-    // } 
+    // }
 
-   
     let account = validate(deps, PREFIX_REVOKED_PERMITS, &permit, token_address)?;
 
     // Permit validated! We can now execute the query.
@@ -351,13 +356,11 @@ fn permit_queries<S: Storage, A: Api, Q: Querier>(
     }
 }
 
-
 #[cfg(test)]
 mod tests {
     use super::*;
     use cosmwasm_std::testing::{mock_dependencies, mock_env};
     use cosmwasm_std::{coins, from_binary};
-
 
     #[test]
     fn init_recore_query() {
@@ -367,30 +370,30 @@ mod tests {
         let env = mock_env("creator", &coins(20, "token"));
         let res = init(&mut deps, env, init_msg).unwrap();
         assert_eq!(0, res.messages.len());
-        
-        
+
         // WE RECORD THE SCORE
         let _env = mock_env("creator", &coins(20, "token"));
-        let msg = HandleMsg::Record {score: 300};
+        let msg = HandleMsg::Record { score: 300 };
         let record_res = handle(&mut deps, _env, msg).unwrap();
         assert_eq!(0, record_res.messages.len());
-        
-        
-        // NEXT WE QUERY THE SCORE 
+
+        // NEXT WE QUERY THE SCORE
         let query_env = mock_env("creator", &coins(20, "token"));
-        let query_msg = QueryMsg::GetScore { address: query_env.message.sender };
-        
-        let res = query(&deps, query_msg).unwrap(); 
+        let query_msg = QueryMsg::GetScore {
+            address: query_env.message.sender,
+        };
+
+        let res = query(&deps, query_msg).unwrap();
         let value: ScoreResponse = from_binary(&res).unwrap();
 
         assert_eq!(300, value.score.unwrap());
 
-       // Query the stats 
+        // Query the stats
         let res = query(&deps, QueryMsg::GetStats {}).unwrap();
         let value: StatsResponse = from_binary(&res).unwrap();
         assert_eq!(10000, value.max_size);
     }
-    
+
     // #[test]
     // fn reset() {
     //     let mut deps = mock_dependencies(20, &coins(2, "token"));
