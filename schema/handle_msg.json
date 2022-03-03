@@ -5,33 +5,184 @@
     {
       "type": "object",
       "required": [
-        "increment"
+        "record"
       ],
       "properties": {
-        "increment": {
-          "type": "object"
+        "record": {
+          "type": "object",
+          "required": [
+            "score"
+          ],
+          "properties": {
+            "score": {
+              "type": "integer",
+              "format": "uint64",
+              "minimum": 0.0
+            }
+          }
         }
       }
     },
     {
       "type": "object",
       "required": [
-        "reset"
+        "with_permit"
       ],
       "properties": {
-        "reset": {
+        "with_permit": {
           "type": "object",
           "required": [
-            "count"
+            "permit",
+            "query"
           ],
           "properties": {
-            "count": {
-              "type": "integer",
-              "format": "int32"
+            "permit": {
+              "$ref": "#/definitions/Permit"
+            },
+            "query": {
+              "$ref": "#/definitions/QueryWithPermit"
+            }
+          }
+        }
+      }
+    },
+    {
+      "type": "object",
+      "required": [
+        "revoke_permit"
+      ],
+      "properties": {
+        "revoke_permit": {
+          "type": "object",
+          "required": [
+            "permit_name"
+          ],
+          "properties": {
+            "padding": {
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "permit_name": {
+              "type": "string"
             }
           }
         }
       }
     }
-  ]
+  ],
+  "definitions": {
+    "Binary": {
+      "description": "Binary is a wrapper around Vec<u8> to add base64 de/serialization with serde. It also adds some helper methods to help encode inline.\n\nThis is only needed as serde-json-{core,wasm} has a horrible encoding for Vec<u8>",
+      "type": "string"
+    },
+    "HumanAddr": {
+      "type": "string"
+    },
+    "Permission": {
+      "type": "string",
+      "enum": [
+        "allowance",
+        "balance",
+        "history",
+        "owner"
+      ]
+    },
+    "Permit": {
+      "type": "object",
+      "required": [
+        "params",
+        "signature"
+      ],
+      "properties": {
+        "params": {
+          "$ref": "#/definitions/PermitParams"
+        },
+        "signature": {
+          "$ref": "#/definitions/PermitSignature"
+        }
+      }
+    },
+    "PermitParams": {
+      "type": "object",
+      "required": [
+        "allowed_tokens",
+        "chain_id",
+        "permissions",
+        "permit_name"
+      ],
+      "properties": {
+        "allowed_tokens": {
+          "type": "array",
+          "items": {
+            "$ref": "#/definitions/HumanAddr"
+          }
+        },
+        "chain_id": {
+          "type": "string"
+        },
+        "permissions": {
+          "type": "array",
+          "items": {
+            "$ref": "#/definitions/Permission"
+          }
+        },
+        "permit_name": {
+          "type": "string"
+        }
+      }
+    },
+    "PermitSignature": {
+      "type": "object",
+      "required": [
+        "pub_key",
+        "signature"
+      ],
+      "properties": {
+        "pub_key": {
+          "$ref": "#/definitions/PubKey"
+        },
+        "signature": {
+          "$ref": "#/definitions/Binary"
+        }
+      }
+    },
+    "PubKey": {
+      "type": "object",
+      "required": [
+        "type",
+        "value"
+      ],
+      "properties": {
+        "type": {
+          "description": "ignored, but must be \"tendermint/PubKeySecp256k1\" otherwise the verification will fail",
+          "type": "string"
+        },
+        "value": {
+          "description": "Secp256k1 PubKey",
+          "allOf": [
+            {
+              "$ref": "#/definitions/Binary"
+            }
+          ]
+        }
+      }
+    },
+    "QueryWithPermit": {
+      "anyOf": [
+        {
+          "type": "object",
+          "required": [
+            "balance"
+          ],
+          "properties": {
+            "balance": {
+              "type": "object"
+            }
+          }
+        }
+      ]
+    }
+  }
 }
