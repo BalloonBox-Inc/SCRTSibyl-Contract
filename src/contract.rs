@@ -14,7 +14,6 @@ use ripemd160::{Digest, Ripemd160};
 use secp256k1::Secp256k1;
 use secret_toolkit::permit::{Permission, Permit, RevokedPermits, SignedPermit};
 use sha2::Sha256;
-use std::convert::TryFrom;
 
 pub const PREFIX_REVOKED_PERMITS: &str = "revoked_permits";
 pub const SHA256_HASH_SIZE: usize = 32;
@@ -53,7 +52,7 @@ fn valid_max_size(val: u16) -> Option<u16> {
     if val < 1 {
         None
     } else {
-        u16::try_from(val).ok()
+        Some(val)
     }
 }
 
@@ -81,9 +80,9 @@ fn permit_handle<S: Storage, A: Api, Q: Querier>(
         .contract_address;
 
     if env.message.sender.to_string() != permit.params.permit_name {
-        return Err(StdError::generic_err(format!(
-            "Permission for this sender has not been authorized."
-        )));
+        return Err(StdError::generic_err(
+            "Permission for this sender has not been authorized.".to_string()
+        ));
     }
 
     let account = validate(deps, PREFIX_REVOKED_PERMITS, &permit, token_address)?;
@@ -104,7 +103,7 @@ fn permit_handle<S: Storage, A: Api, Q: Querier>(
         messages: vec![],
         log: vec![],
         data: Some(to_binary(&HandleAnswer::PermitHandle {
-            data: query_read(&deps, &account),
+            data: query_read(deps, &account),
         })?),
     })
 }
@@ -141,7 +140,7 @@ pub fn try_record<S: Storage, A: Api, Q: Querier>(
 
     // create the User struct containing score  and timestamp
     let stored_score = User {
-        score: score,
+        score,
         timestamp: env.block.time,
     };
 
@@ -152,7 +151,7 @@ pub fn try_record<S: Storage, A: Api, Q: Querier>(
     )?;
 
     if user_state {
-        let state = query_stats(&deps).unwrap();
+        let state = query_stats(deps).unwrap();
 
         let new_state = State {
             max_size: state.max_size,
@@ -178,7 +177,7 @@ fn query_read<S: Storage, A: Api, Q: Querier>(
     let status: String;
     let mut score: Option<u64> = None;
     let mut timestamp: Option<u64> = None;
-    let sender_address = deps.api.canonical_address(&address)?;
+    let sender_address = deps.api.canonical_address(address)?;
     let result: Option<User> = may_load(&deps.storage, &sender_address.as_slice().to_vec())
         .ok()
         .unwrap();
@@ -200,9 +199,9 @@ fn query_read<S: Storage, A: Api, Q: Querier>(
     }
 
     Ok(ScoreResponse {
-        score: score,
-        timestamp: timestamp,
-        status: status,
+        score,
+        timestamp,
+        status,
     })
 }
 
@@ -217,7 +216,7 @@ fn query_stats<S: Storage, A: Api, Q: Querier>(deps: &Extern<S, A, Q>) -> StdRes
 pub fn query<S: Storage, A: Api, Q: Querier>(deps: &Extern<S, A, Q>, msg: QueryMsg) -> QueryResult {
     match msg {
         QueryMsg::GetStats {} => to_binary(&query_stats(deps)?), // get the max_length allowed and the count
-        QueryMsg::GetScore { address } => to_binary(&query_read(&deps, &address)?),
+        QueryMsg::GetScore { address } => to_binary(&query_read(deps, &address)?),
         QueryMsg::WithPermit { permit, query } => permit_queries(deps, permit, query),
     }
 }
@@ -326,7 +325,7 @@ fn permit_queries<S: Storage, A: Api, Q: Querier>(
                 )));
             }
 
-            to_binary(&query_read(&deps, &account))
+            to_binary(&query_read(deps, &account))
         }
     }
 }
