@@ -1,4 +1,4 @@
-# ScrtSybil Contract
+# ScrtSbyl Contract
 
 This is a secret contract in Rust to run in
 [Secret Network](https://github.com/enigmampc/SecretNetwork).
