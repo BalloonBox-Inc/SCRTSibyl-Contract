@@ -2,10 +2,14 @@ use crate::msg::{
     HandleAnswer, HandleMsg, InitMsg, QueryMsg, QueryWithPermit, ResponseStatus, ScoreResponse,
     StatsResponse,
 };
-use crate::state::{ does_user_exist, load, may_load, save, Config, Constants, ReadonlyConfig, State, User,
+use crate::state::{
+    does_user_exist, load, may_load, save, Config, Constants, ReadonlyConfig, State, User,
     CONFIG_KEY,
 };
-use cosmwasm_std::{ to_binary, Api, Binary, CanonicalAddr, Env, Extern, HandleResponse, HumanAddr, InitResponse, Querier, QueryResult, StdError, StdResult, Storage};
+use cosmwasm_std::{
+    to_binary, Api, Binary, CanonicalAddr, Env, Extern, HandleResponse, HumanAddr, InitResponse,
+    Querier, QueryResult, StdError, StdResult, Storage,
+};
 use ripemd160::{Digest, Ripemd160};
 use secp256k1::Secp256k1;
 use secret_toolkit::permit::{Permission, Permit, RevokedPermits, SignedPermit};
@@ -210,7 +214,6 @@ fn query_stats<S: Storage, A: Api, Q: Querier>(deps: &Extern<S, A, Q>) -> StdRes
     })
 }
 
-
 pub fn query<S: Storage, A: Api, Q: Querier>(deps: &Extern<S, A, Q>, msg: QueryMsg) -> QueryResult {
     match msg {
         QueryMsg::GetStats {} => to_binary(&query_stats(deps)?), // get the max_length allowed and the count
@@ -331,7 +334,7 @@ fn permit_queries<S: Storage, A: Api, Q: Querier>(
 #[cfg(test)]
 mod tests {
     use super::*;
-    use cosmwasm_std::testing::{mock_dependencies, mock_env, };
+    use cosmwasm_std::testing::{mock_dependencies, mock_env};
     use cosmwasm_std::{coins, from_binary, ReadonlyStorage};
 
     #[test]
@@ -381,15 +384,16 @@ mod tests {
         let record_res = handle(&mut deps, _env, msg).unwrap();
         assert_eq!(0, record_res.messages.len());
 
-
         // Revoke a permission
         let __env = mock_env("creator", &coins(20, "token"));
-        let revoke_msg = HandleMsg::RevokePermit {permit_name: String::from("test"), padding: None};
+        let revoke_msg = HandleMsg::RevokePermit {
+            permit_name: String::from("test"),
+            padding: None,
+        };
 
         let record_revoke = handle(&mut deps, __env, revoke_msg).unwrap();
 
         assert_eq!(0, record_revoke.messages.len());
-
 
         // Check if permit is revoked
         let storage_key = PREFIX_REVOKED_PERMITS.to_string() + "creator" + "test";
@@ -399,5 +403,4 @@ mod tests {
 
         assert_eq!(true, revoked_permits);
     }
-
 }
