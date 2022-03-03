@@ -4,10 +4,7 @@ use serde::{Deserialize, Serialize};
 use std::any::type_name;
 
 use cosmwasm_std::{HumanAddr, ReadonlyStorage, StdError, StdResult, Storage};
-use cosmwasm_storage::{
-    singleton, singleton_read, PrefixedStorage, ReadonlyPrefixedStorage, ReadonlySingleton,
-    Singleton,
-};
+use cosmwasm_storage::{PrefixedStorage, ReadonlyPrefixedStorage};
 use secret_toolkit::serialization::{Bincode2, Serde};
 
 pub static CONFIG_KEY: &[u8] = b"config";
@@ -94,14 +91,6 @@ pub struct State {
 pub struct User {
     pub score: u64,
     pub timestamp: u64,
-}
-
-pub fn config<S: Storage>(storage: &mut S) -> Singleton<S, User> {
-    singleton(storage, CONFIG_KEY)
-}
-
-pub fn config_read<S: Storage>(storage: &S) -> ReadonlySingleton<S, User> {
-    singleton_read(storage, CONFIG_KEY)
 }
 
 pub fn save<T: Serialize, S: Storage>(storage: &mut S, key: &[u8], value: &T) -> StdResult<()> {

@@ -2,14 +2,10 @@ use crate::msg::{
     HandleAnswer, HandleMsg, InitMsg, QueryMsg, QueryWithPermit, ResponseStatus, ScoreResponse,
     StatsResponse,
 };
-use crate::state::{
-    config, does_user_exist, load, may_load, save, Config, Constants, ReadonlyConfig, State, User,
+use crate::state::{ does_user_exist, load, may_load, save, Config, Constants, ReadonlyConfig, State, User,
     CONFIG_KEY,
 };
-use cosmwasm_std::{
-    debug_print, to_binary, Api, Binary, CanonicalAddr, Env, Extern, HandleResponse, HumanAddr,
-    InitResponse, Querier, QueryResult, StdError, StdResult, Storage,
-};
+use cosmwasm_std::{ to_binary, Api, Binary, CanonicalAddr, Env, Extern, HandleResponse, HumanAddr, InitResponse, Querier, QueryResult, StdError, StdResult, Storage};
 use ripemd160::{Digest, Ripemd160};
 use secp256k1::Secp256k1;
 use secret_toolkit::permit::{Permission, Permit, RevokedPermits, SignedPermit};
@@ -38,8 +34,6 @@ pub fn init<S: Storage, A: Api, Q: Querier>(
         score_count: 0_u64,
     };
 
-    // config(&mut deps.storage).save(&state)?;
-    // debug_print!("Contract was initialized by {}", env.message.sender);
     save(&mut deps.storage, CONFIG_KEY, &state)?;
 
     let mut config = Config::from_storage(&mut deps.storage);
@@ -65,8 +59,6 @@ pub fn handle<S: Storage, A: Api, Q: Querier>(
     msg: HandleMsg,
 ) -> StdResult<HandleResponse> {
     match msg {
-        // HandleMsg::Increment {} => try_increment(deps, env),
-        // HandleMsg::Reset { count } => try_reset(deps, env, count),
         HandleMsg::Record { score } => try_record(deps, env, score),
         HandleMsg::RevokePermit { permit_name, .. } => revoke_permit(deps, env, permit_name),
         HandleMsg::WithPermit { permit, query } => permit_handle(deps, permit, query, env),
@@ -91,8 +83,8 @@ fn permit_handle<S: Storage, A: Api, Q: Querier>(
     }
 
     let account = validate(deps, PREFIX_REVOKED_PERMITS, &permit, token_address)?;
-
     // Permit validated! We can now execute the query.
+
     match query {
         QueryWithPermit::Balance {} => {
             if !permit.check_permission(&Permission::Balance) {
@@ -107,12 +99,10 @@ fn permit_handle<S: Storage, A: Api, Q: Querier>(
     Ok(HandleResponse {
         messages: vec![],
         log: vec![],
-        // data: Some(to_binary(&HandleAnswer::RevokePermit { status: ResponseStatus::Success })?),
         data: Some(to_binary(&HandleAnswer::PermitHandle {
             data: query_read(&deps, &account),
         })?),
     })
-    // to_binary(&query_read(&deps, &account))
 }
 
 fn revoke_permit<S: Storage, A: Api, Q: Querier>(
@@ -214,26 +204,12 @@ fn query_read<S: Storage, A: Api, Q: Querier>(
 
 fn query_stats<S: Storage, A: Api, Q: Querier>(deps: &Extern<S, A, Q>) -> StdResult<StatsResponse> {
     let config: State = load(&deps.storage, CONFIG_KEY)?;
-    println!("CONFIG FROM QUERY_STATS IS: {:?} ", config);
     Ok(StatsResponse {
         score_count: config.score_count,
         max_size: config.max_size,
     })
 }
 
-pub fn try_increment<S: Storage, A: Api, Q: Querier>(
-    deps: &mut Extern<S, A, Q>,
-    _env: Env,
-) -> StdResult<HandleResponse> {
-    config(&mut deps.storage).update(|mut state| {
-        state.score += 1;
-        debug_print!("count = {}", state.score);
-        Ok(state)
-    })?;
-
-    debug_print("count incremented successfully");
-    Ok(HandleResponse::default())
-}
 
 pub fn query<S: Storage, A: Api, Q: Querier>(deps: &Extern<S, A, Q>, msg: QueryMsg) -> QueryResult {
     match msg {
@@ -335,10 +311,6 @@ fn permit_queries<S: Storage, A: Api, Q: Querier>(
         .constants()?
         .contract_address;
 
-    // if permit.params.permit_name != env.message.sender.to_string() {
-    //     return Err(StdError::generic_err("Sender does not have authorization to query this score."))
-    // }
-
     let account = validate(deps, PREFIX_REVOKED_PERMITS, &permit, token_address)?;
 
     // Permit validated! We can now execute the query.
@@ -359,8 +331,8 @@ fn permit_queries<S: Storage, A: Api, Q: Querier>(
 #[cfg(test)]
 mod tests {
     use super::*;
-    use cosmwasm_std::testing::{mock_dependencies, mock_env};
-    use cosmwasm_std::{coins, from_binary};
+    use cosmwasm_std::testing::{mock_dependencies, mock_env, };
+    use cosmwasm_std::{coins, from_binary, ReadonlyStorage};
 
     #[test]
     fn init_recore_query() {
@@ -394,31 +366,38 @@ mod tests {
         assert_eq!(10000, value.max_size);
     }
 
-    // #[test]
-    // fn reset() {
-    //     let mut deps = mock_dependencies(20, &coins(2, "token"));
+    #[test]
+    fn handle_revoke_permit() {
+        // First we init
+        let mut deps = mock_dependencies(20, &coins(2, "token"));
+        let init_msg = InitMsg { max_size: 10000 };
+        let env = mock_env("creator", &coins(20, "token"));
+        let res = init(&mut deps, env, init_msg).unwrap();
+        assert_eq!(0, res.messages.len());
 
-    //     let msg = InitMsg { score: 17 };
-    //     let env = mock_env("creator", &coins(2, "token"));
-    //     let _res = init(&mut deps, env, msg).unwrap();
+        // WE RECORD THE SCORE
+        let _env = mock_env("creator", &coins(20, "token"));
+        let msg = HandleMsg::Record { score: 300 };
+        let record_res = handle(&mut deps, _env, msg).unwrap();
+        assert_eq!(0, record_res.messages.len());
 
-    //     // not anyone can reset
-    //     let unauth_env = mock_env("anyone", &coins(2, "token"));
-    //     let msg = HandleMsg::Reset { count: 5 };
-    //     let res = handle(&mut deps, unauth_env, msg);
-    //     match res {
-    //         Err(StdError::Unauthorized { .. }) => {}
-    //         _ => panic!("Must return unauthorized error"),
-    //     }
 
-    //     // only the original creator can reset the counter
-    //     let auth_env = mock_env("creator", &coins(2, "token"));
-    //     let msg = HandleMsg::Reset { count: 5 };
-    //     let _res = handle(&mut deps, auth_env, msg).unwrap();
+        // Revoke a permission
+        let __env = mock_env("creator", &coins(20, "token"));
+        let revoke_msg = HandleMsg::RevokePermit {permit_name: String::from("test"), padding: None};
 
-    //     // should now be 5
-    //     let res = query(&deps, QueryMsg::GetScore {}).unwrap();
-    //     let value: ScoreResponse = from_binary(&res).unwrap();
-    //     assert_eq!(5, value.score);
-    // }
+        let record_revoke = handle(&mut deps, __env, revoke_msg).unwrap();
+
+        assert_eq!(0, record_revoke.messages.len());
+
+
+        // Check if permit is revoked
+        let storage_key = PREFIX_REVOKED_PERMITS.to_string() + "creator" + "test";
+
+        let revoked_permits = deps.storage.get(storage_key.as_bytes()).is_some();
+        println!("Revoked_permits: {:?}", revoked_permits);
+
+        assert_eq!(true, revoked_permits);
+    }
+
 }
