@@ -81,7 +81,7 @@ fn permit_handle<S: Storage, A: Api, Q: Querier>(
 
     if env.message.sender.to_string() != permit.params.permit_name {
         return Err(StdError::generic_err(
-            "Permission for this sender has not been authorized.".to_string()
+            "Permission for this sender has not been authorized.".to_string(),
         ));
     }
 
