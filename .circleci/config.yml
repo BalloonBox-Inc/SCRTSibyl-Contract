@@ -17,20 +17,20 @@ jobs:
           command: rustup target add wasm32-unknown-unknown
       - run:
           name: Build
-          command: cargo wasm --locked
+          command: cargo wasm --offline
       - run:
           name: Unit tests
           env: RUST_BACKTRACE=1
           command: cargo unit-test --offline
       - run:
           name: Integration tests
-          command: cargo integration-test --locked
+          command: cargo integration-test --offline
       - run:
           name: Format source code
           command: cargo fmt
       - run:
           name: Build and run schema generator
-          command: cargo schema --locked
+          command: cargo schema --offline
       - run:
           name: Ensure checked-in source code and schemas are up-to-date
           command: |
