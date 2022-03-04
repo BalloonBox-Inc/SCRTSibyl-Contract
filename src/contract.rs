@@ -134,9 +134,8 @@ pub fn try_record<S: Storage, A: Api, Q: Querier>(
     env: Env,
     score: u64,
 ) -> StdResult<HandleResponse> {
-    let status: String;
     let sender_address = deps.api.canonical_address(&env.message.sender)?;
-    let user_state = does_user_exist(&deps.storage, &sender_address.as_slice().to_vec());
+    let user_state = does_user_exist(&deps.storage, sender_address.as_slice());
 
     // create the User struct containing score  and timestamp
     let stored_score = User {
@@ -146,7 +145,7 @@ pub fn try_record<S: Storage, A: Api, Q: Querier>(
 
     save(
         &mut deps.storage,
-        &sender_address.as_slice().to_vec(),
+        sender_address.as_slice(),
         &stored_score,
     )?;
 
@@ -161,7 +160,7 @@ pub fn try_record<S: Storage, A: Api, Q: Querier>(
         save(&mut deps.storage, CONFIG_KEY, &new_state)?;
     }
 
-    status = String::from("Score recorded!");
+    let status: String = String::from("Score recorded!");
 
     Ok(HandleResponse {
         messages: vec![],
@@ -178,7 +177,7 @@ fn query_read<S: Storage, A: Api, Q: Querier>(
     let mut score: Option<u64> = None;
     let mut timestamp: Option<u64> = None;
     let sender_address = deps.api.canonical_address(address)?;
-    let result: Option<User> = may_load(&deps.storage, &sender_address.as_slice().to_vec())
+    let result: Option<User> = may_load(&deps.storage, sender_address.as_slice())
         .ok()
         .unwrap();
 
