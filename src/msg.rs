@@ -1,7 +1,7 @@
-use schemars::JsonSchema;
-use serde::{Deserialize, Serialize};
 use cosmwasm_std::{HumanAddr, StdResult};
+use schemars::JsonSchema;
 use secret_toolkit::permit::Permit;
+use serde::{Deserialize, Serialize};
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
 pub struct InitMsg {
@@ -12,7 +12,7 @@ pub struct InitMsg {
 #[serde(rename_all = "snake_case")]
 pub enum HandleMsg {
     Record {
-        score: u64
+        score: u64,
     },
 
     WithPermit {
@@ -25,7 +25,6 @@ pub enum HandleMsg {
         padding: Option<String>,
     },
 }
-
 
 #[derive(Serialize, Deserialize, Clone, PartialEq, JsonSchema, Debug)]
 #[serde(rename_all = "snake_case")]
@@ -46,14 +45,14 @@ pub enum HandleAnswer {
         status: String,
         score: Option<u64>,
     },
- 
+
     RevokePermit {
         status: ResponseStatus,
     },
 
     PermitHandle {
-        data: StdResult<ScoreResponse>
-    }
+        data: StdResult<ScoreResponse>,
+    },
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
@@ -66,9 +65,8 @@ pub enum QueryMsg {
     WithPermit {
         permit: Permit,
         query: QueryWithPermit,
-    }
+    },
 }
-
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
 #[serde(rename_all = "snake_case")]
@@ -81,7 +79,7 @@ impl QueryMsg {
         match self {
             Self::GetScore { address, .. } => {
                 vec![address]
-            },
+            }
             _ => panic!("This query type does not require authentication"),
         }
     }
@@ -92,16 +90,14 @@ impl QueryMsg {
 pub struct ScoreResponse {
     pub score: Option<u64>,
     pub timestamp: Option<u64>,
-    pub status: String
+    pub status: String,
 }
-
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
 pub struct StatsResponse {
     pub score_count: u64,
-    pub max_size: u16 
+    pub max_size: u16,
 }
-
 
 /// Responses from query functions
 #[derive(Serialize, Deserialize, Debug, JsonSchema)]

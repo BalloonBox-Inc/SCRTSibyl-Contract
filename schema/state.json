@@ -3,25 +3,19 @@
   "title": "State",
   "type": "object",
   "required": [
-    "count",
-    "owner"
+    "max_size",
+    "score_count"
   ],
   "properties": {
-    "count": {
+    "max_size": {
       "type": "integer",
-      "format": "int32"
+      "format": "uint16",
+      "minimum": 0.0
     },
-    "owner": {
-      "$ref": "#/definitions/CanonicalAddr"
-    }
-  },
-  "definitions": {
-    "Binary": {
-      "description": "Binary is a wrapper around Vec<u8> to add base64 de/serialization with serde. It also adds some helper methods to help encode inline.\n\nThis is only needed as serde-json-{core,wasm} has a horrible encoding for Vec<u8>",
-      "type": "string"
-    },
-    "CanonicalAddr": {
-      "$ref": "#/definitions/Binary"
+    "score_count": {
+      "type": "integer",
+      "format": "uint64",
+      "minimum": 0.0
     }
   }
 }

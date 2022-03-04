@@ -1,11 +1,11 @@
 use schemars::JsonSchema;
-use serde::{Deserialize, Serialize};
 use serde::de::DeserializeOwned;
-use std::{any::type_name};
+use serde::{Deserialize, Serialize};
+use std::any::type_name;
 
-use cosmwasm_std::{ Storage, StdResult, ReadonlyStorage, StdError,  HumanAddr};
-use cosmwasm_storage::{singleton, singleton_read, ReadonlySingleton, Singleton, ReadonlyPrefixedStorage, PrefixedStorage};
-use secret_toolkit::serialization::{Bincode2, Serde,};
+use cosmwasm_std::{HumanAddr, ReadonlyStorage, StdError, StdResult, Storage};
+use cosmwasm_storage::{PrefixedStorage, ReadonlyPrefixedStorage};
+use secret_toolkit::serialization::{Bincode2, Serde};
 
 pub static CONFIG_KEY: &[u8] = b"config";
 pub const PREFIX_CONFIG: &[u8] = b"config";
@@ -35,11 +35,9 @@ impl<'a, S: ReadonlyStorage> ReadonlyConfig<'a, S> {
         ReadonlyConfigImpl(&self.storage)
     }
 
-
     pub fn constants(&self) -> StdResult<Constants> {
         self.as_readonly().constants()
     }
-
 }
 
 /// This struct refactors out the readonly methods that we need for `Config` and `ReadonlyConfig`
@@ -48,7 +46,6 @@ impl<'a, S: ReadonlyStorage> ReadonlyConfig<'a, S> {
 /// This was the only way to prevent code duplication of these methods because of the way
 /// that `ReadonlyPrefixedStorage` and `PrefixedStorage` are implemented in `cosmwasm-std`
 struct ReadonlyConfigImpl<'a, S: ReadonlyStorage>(&'a S);
-
 
 impl<'a, S: ReadonlyStorage> ReadonlyConfigImpl<'a, S> {
     fn constants(&self) -> StdResult<Constants> {
@@ -71,7 +68,6 @@ fn set_bin_data<T: Serialize, S: Storage>(storage: &mut S, key: &[u8], data: &T)
     storage.set(key, &bin_data);
     Ok(())
 }
-
 
 impl<'a, S: Storage> Config<'a, S> {
     pub fn from_storage(storage: &'a mut S) -> Self {
@@ -97,15 +93,6 @@ pub struct User {
     pub timestamp: u64,
 }
 
-pub fn config<S: Storage>(storage: &mut S) -> Singleton<S, User> {
-    singleton(storage, CONFIG_KEY)
-}
-
-
-pub fn config_read<S: Storage>(storage: &S) -> ReadonlySingleton<S, User> {
-    singleton_read(storage, CONFIG_KEY)
-}
-
 pub fn save<T: Serialize, S: Storage>(storage: &mut S, key: &[u8], value: &T) -> StdResult<()> {
     storage.set(key, &Bincode2::serialize(value)?);
     Ok(())
@@ -119,24 +106,19 @@ pub fn load<T: DeserializeOwned, S: ReadonlyStorage>(storage: &S, key: &[u8]) ->
     )
 }
 
-pub fn may_load<T: DeserializeOwned, S: ReadonlyStorage>(storage: &S, key: &[u8]) -> StdResult<Option<T>> {
+pub fn may_load<T: DeserializeOwned, S: ReadonlyStorage>(
+    storage: &S,
+    key: &[u8],
+) -> StdResult<Option<T>> {
     match storage.get(key) {
-        Some(value) => {
-            Bincode2::deserialize(&value[..]).map(Some)
-        },  
-        None => {
-            Ok(None)
-        },
+        Some(value) => Bincode2::deserialize(&value[..]).map(Some),
+        None => Ok(None),
     }
 }
 
 pub fn does_user_exist<S: ReadonlyStorage>(storage: &S, key: &[u8]) -> bool {
     match storage.get(key) {
-        Some(_value) => {
-            true
-        },  
-        None => {
-           false
-        },
+        Some(_value) => true,
+        None => false,
     }
 }

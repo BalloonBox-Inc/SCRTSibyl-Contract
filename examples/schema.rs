@@ -3,7 +3,7 @@ use std::fs::create_dir_all;
 
 use cosmwasm_schema::{export_schema, remove_schemas, schema_for};
 
-use secret_template::msg::{ScoreResponse, HandleMsg, InitMsg, QueryMsg};
+use secret_template::msg::{HandleMsg, InitMsg, QueryMsg, ScoreResponse};
 use secret_template::state::State;
 
 fn main() {
