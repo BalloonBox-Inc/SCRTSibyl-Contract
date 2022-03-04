@@ -24,7 +24,6 @@ jobs:
         uses: actions-rs/cargo@v1
         with:
           command: unit-test
-          args: --offline
         env:
           RUST_BACKTRACE: 1
 
@@ -32,7 +31,7 @@ jobs:
         uses: actions-rs/cargo@v1
         with:
           command: wasm
-          args: --offline
+          args: --locked
         env:
           RUSTFLAGS: "-C link-arg=-s"
 
@@ -40,7 +39,7 @@ jobs:
         uses: actions-rs/cargo@v1
         with:
           command: integration-test
-          args: --offline
+          args: --locked
 
   lints:
     name: Lints
@@ -76,4 +75,4 @@ jobs:
         uses: actions-rs/cargo@v1
         with:
           command: schema
-          args: --offline
+          args: --locked
