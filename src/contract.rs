@@ -143,11 +143,7 @@ pub fn try_record<S: Storage, A: Api, Q: Querier>(
         timestamp: env.block.time,
     };
 
-    save(
-        &mut deps.storage,
-        sender_address.as_slice(),
-        &stored_score,
-    )?;
+    save(&mut deps.storage, sender_address.as_slice(), &stored_score)?;
 
     if user_state {
         let state = query_stats(deps).unwrap();
