@@ -3,9 +3,13 @@
   "title": "ScoreResponse",
   "type": "object",
   "required": [
+    "description",
     "status"
   ],
   "properties": {
+    "description": {
+      "type": "string"
+    },
     "score": {
       "type": [
         "integer",

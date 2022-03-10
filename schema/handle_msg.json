@@ -11,9 +11,13 @@
         "record": {
           "type": "object",
           "required": [
+            "description",
             "score"
           ],
           "properties": {
+            "description": {
+              "type": "string"
+            },
             "score": {
               "type": "integer",
               "format": "uint64",

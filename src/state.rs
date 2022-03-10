@@ -91,6 +91,7 @@ pub struct State {
 pub struct User {
     pub score: u64,
     pub timestamp: u64,
+    pub description: Vec<u8>,
 }
 
 pub fn save<T: Serialize, S: Storage>(storage: &mut S, key: &[u8], value: &T) -> StdResult<()> {

@@ -13,6 +13,7 @@ pub struct InitMsg {
 pub enum HandleMsg {
     Record {
         score: u64,
+        description: String,
     },
 
     WithPermit {
@@ -44,6 +45,7 @@ pub enum HandleAnswer {
     Read {
         status: String,
         score: Option<u64>,
+        description: Vec<u8>,
     },
 
     RevokePermit {
@@ -91,6 +93,7 @@ pub struct ScoreResponse {
     pub score: Option<u64>,
     pub timestamp: Option<u64>,
     pub status: String,
+    pub description: String,
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]

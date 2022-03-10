@@ -62,7 +62,7 @@ pub fn handle<S: Storage, A: Api, Q: Querier>(
     msg: HandleMsg,
 ) -> StdResult<HandleResponse> {
     match msg {
-        HandleMsg::Record { score } => try_record(deps, env, score),
+        HandleMsg::Record { score, description } => try_record(deps, env, score, description),
         HandleMsg::RevokePermit { permit_name, .. } => revoke_permit(deps, env, permit_name),
         HandleMsg::WithPermit { permit, query } => permit_handle(deps, permit, query, env),
     }
@@ -133,14 +133,16 @@ pub fn try_record<S: Storage, A: Api, Q: Querier>(
     deps: &mut Extern<S, A, Q>,
     env: Env,
     score: u64,
+    description: String,
 ) -> StdResult<HandleResponse> {
     let sender_address = deps.api.canonical_address(&env.message.sender)?;
     let user_state = does_user_exist(&deps.storage, sender_address.as_slice());
-
+    let description = description.as_bytes();
     // create the User struct containing score  and timestamp
     let stored_score = User {
         score,
         timestamp: env.block.time,
+        description: description.to_vec(),
     };
 
     save(&mut deps.storage, sender_address.as_slice(), &stored_score)?;
@@ -170,6 +172,7 @@ fn query_read<S: Storage, A: Api, Q: Querier>(
     address: &HumanAddr,
 ) -> StdResult<ScoreResponse> {
     let status: String;
+    let description: String;
     let mut score: Option<u64> = None;
     let mut timestamp: Option<u64> = None;
     let sender_address = deps.api.canonical_address(address)?;
@@ -181,14 +184,17 @@ fn query_read<S: Storage, A: Api, Q: Querier>(
         Some(stored_score) => {
             score = Some(stored_score.score);
             timestamp = Some(stored_score.timestamp);
+            description = String::from_utf8(stored_score.description).unwrap();
             status = String::from("Score found.");
         }
         None => {
             status = String::from("Reminder not found.");
+            description = String::from("N/A");
             return Ok(ScoreResponse {
                 status,
                 timestamp,
                 score,
+                description,
             });
         }
     }
@@ -197,6 +203,7 @@ fn query_read<S: Storage, A: Api, Q: Querier>(
         score,
         timestamp,
         status,
+        description,
     })
 }
 
@@ -342,7 +349,10 @@ mod tests {
 
         // WE RECORD THE SCORE
         let _env = mock_env("creator", &coins(20, "token"));
-        let msg = HandleMsg::Record { score: 300 };
+        let msg = HandleMsg::Record {
+            score: 300,
+            description: "This describes your score".to_string(),
+        };
         let record_res = handle(&mut deps, _env, msg).unwrap();
         assert_eq!(0, record_res.messages.len());
 
@@ -356,6 +366,9 @@ mod tests {
         let value: ScoreResponse = from_binary(&res).unwrap();
 
         assert_eq!(300, value.score.unwrap());
+
+        println!("SCORE DESCIPTION IS: {}", value.description);
+        assert_eq!("This describes your score", value.description);
 
         // Query the stats
         let res = query(&deps, QueryMsg::GetStats {}).unwrap();
@@ -374,7 +387,10 @@ mod tests {
 
         // WE RECORD THE SCORE
         let _env = mock_env("creator", &coins(20, "token"));
-        let msg = HandleMsg::Record { score: 300 };
+        let msg = HandleMsg::Record {
+            score: 300,
+            description: String::from("Good job dude"),
+        };
         let record_res = handle(&mut deps, _env, msg).unwrap();
         assert_eq!(0, record_res.messages.len());
 
