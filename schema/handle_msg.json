@@ -74,6 +74,31 @@
           }
         }
       }
+    },
+    {
+      "type": "object",
+      "required": [
+        "generate_viewing_key"
+      ],
+      "properties": {
+        "generate_viewing_key": {
+          "type": "object",
+          "required": [
+            "entropy"
+          ],
+          "properties": {
+            "entropy": {
+              "type": "string"
+            },
+            "padding": {
+              "type": [
+                "string",
+                "null"
+              ]
+            }
+          }
+        }
+      }
     }
   ],
   "definitions": {

@@ -1,11 +1,12 @@
 use crate::msg::{
     HandleAnswer, HandleMsg, InitMsg, QueryMsg, QueryWithPermit, ResponseStatus, ScoreResponse,
-    StatsResponse,
+    StateResponse, StatsResponse,
 };
 use crate::state::{
-    does_user_exist, load, may_load, save, Config, Constants, ReadonlyConfig, State, User,
-    CONFIG_KEY,
+    does_user_exist, load, may_load, read_viewing_key, save, write_viewing_key, Config, Constants,
+    ReadonlyConfig, State, User, CONFIG_KEY,
 };
+use crate::viewing_key::{ViewingKey, VIEWING_KEY_SIZE};
 use cosmwasm_std::{
     to_binary, Api, Binary, CanonicalAddr, Env, Extern, HandleResponse, HumanAddr, InitResponse,
     Querier, QueryResult, StdError, StdResult, Storage,
@@ -35,6 +36,7 @@ pub fn init<S: Storage, A: Api, Q: Querier>(
     let state = State {
         max_size,
         score_count: 0_u64,
+        prng_seed: sha_256(base64::encode(msg.prng_seed).as_bytes()).to_vec(),
     };
 
     save(&mut deps.storage, CONFIG_KEY, &state)?;
@@ -65,7 +67,31 @@ pub fn handle<S: Storage, A: Api, Q: Querier>(
         HandleMsg::Record { score, description } => try_record(deps, env, score, description),
         HandleMsg::RevokePermit { permit_name, .. } => revoke_permit(deps, env, permit_name),
         HandleMsg::WithPermit { permit, query } => permit_handle(deps, permit, query, env),
+        HandleMsg::GenerateViewingKey { entropy, .. } => {
+            try_generate_viewing_key(deps, env, entropy)
+        }
     }
+}
+
+pub fn try_generate_viewing_key<S: Storage, A: Api, Q: Querier>(
+    deps: &mut Extern<S, A, Q>,
+    env: Env,
+    entropy: String,
+) -> StdResult<HandleResponse> {
+    let config: State = load(&deps.storage, CONFIG_KEY)?;
+    let prng_seed = config.prng_seed;
+
+    let key = ViewingKey::new(&env, &prng_seed, (&entropy).as_ref());
+
+    let message_sender = deps.api.canonical_address(&env.message.sender)?;
+
+    write_viewing_key(&mut deps.storage, &message_sender, &key);
+
+    Ok(HandleResponse {
+        messages: vec![],
+        log: vec![],
+        data: Some(to_binary(&HandleAnswer::GenerateViewingKey { key })?),
+    })
 }
 
 fn permit_handle<S: Storage, A: Api, Q: Querier>(
@@ -148,11 +174,12 @@ pub fn try_record<S: Storage, A: Api, Q: Querier>(
     save(&mut deps.storage, sender_address.as_slice(), &stored_score)?;
 
     if user_state {
-        let state = query_stats(deps).unwrap();
+        let state: StateResponse = query_state(deps).unwrap();
 
         let new_state = State {
             max_size: state.max_size,
             score_count: state.score_count + 1,
+            prng_seed: state.prng_seed,
         };
 
         save(&mut deps.storage, CONFIG_KEY, &new_state)?;
@@ -215,12 +242,49 @@ fn query_stats<S: Storage, A: Api, Q: Querier>(deps: &Extern<S, A, Q>) -> StdRes
     })
 }
 
+fn query_state<S: Storage, A: Api, Q: Querier>(deps: &Extern<S, A, Q>) -> StdResult<StateResponse> {
+    let config: State = load(&deps.storage, CONFIG_KEY)?;
+    Ok(StateResponse {
+        score_count: config.score_count,
+        max_size: config.max_size,
+        prng_seed: config.prng_seed,
+    })
+}
+
 pub fn query<S: Storage, A: Api, Q: Querier>(deps: &Extern<S, A, Q>, msg: QueryMsg) -> QueryResult {
     match msg {
         QueryMsg::GetStats {} => to_binary(&query_stats(deps)?), // get the max_length allowed and the count
         QueryMsg::GetScore { address } => to_binary(&query_read(deps, &address)?),
         QueryMsg::WithPermit { permit, query } => permit_queries(deps, permit, query),
+        _ => authenticated_queries(deps, msg),
     }
+}
+
+fn authenticated_queries<S: Storage, A: Api, Q: Querier>(
+    deps: &Extern<S, A, Q>,
+    msg: QueryMsg,
+) -> QueryResult {
+    let (addresses, key) = msg.get_validation_params();
+
+    for address in addresses {
+        let canonical_addr = deps.api.canonical_address(address)?;
+
+        let expected_key = read_viewing_key(&deps.storage, &canonical_addr);
+
+        if expected_key.is_none() {
+            // Checking the key will take significant time. We don't want to exit immediately if it isn't set
+            // in a way which will allow to time the command and determine if a viewing key doesn't exist
+            key.check_viewing_key(&[0u8; VIEWING_KEY_SIZE]);
+        } else if key.check_viewing_key(expected_key.unwrap().as_slice()) {
+            // return to_binary(&query_read(deps, &address)?)
+            return match msg {
+                QueryMsg::Read { address, .. } => to_binary(&query_read(deps, &address)?),
+                _ => panic!("This query type does not require authentication"),
+            };
+        }
+    }
+
+    Err(StdError::unauthorized())
 }
 
 pub fn pubkey_to_account(pubkey: &Binary) -> CanonicalAddr {
@@ -334,6 +398,7 @@ fn permit_queries<S: Storage, A: Api, Q: Querier>(
 
 #[cfg(test)]
 mod tests {
+
     use super::*;
     use cosmwasm_std::testing::{mock_dependencies, mock_env};
     use cosmwasm_std::{coins, from_binary, ReadonlyStorage};
@@ -342,7 +407,10 @@ mod tests {
     fn init_recore_query() {
         // First we init
         let mut deps = mock_dependencies(20, &coins(2, "token"));
-        let init_msg = InitMsg { max_size: 10000 };
+        let init_msg = InitMsg {
+            max_size: 10000,
+            prng_seed: "this is a padding".to_string(),
+        };
         let env = mock_env("creator", &coins(20, "token"));
         let res = init(&mut deps, env, init_msg).unwrap();
         assert_eq!(0, res.messages.len());
@@ -363,7 +431,9 @@ mod tests {
         };
 
         let res = query(&deps, query_msg).unwrap();
+
         let value: ScoreResponse = from_binary(&res).unwrap();
+        println!("value from first test is {:?}", value);
 
         assert_eq!(300, value.score.unwrap());
 
@@ -380,7 +450,10 @@ mod tests {
     fn handle_revoke_permit() {
         // First we init
         let mut deps = mock_dependencies(20, &coins(2, "token"));
-        let init_msg = InitMsg { max_size: 10000 };
+        let init_msg = InitMsg {
+            max_size: 10000,
+            prng_seed: "this is a padding".to_string(),
+        };
         let env = mock_env("creator", &coins(20, "token"));
         let res = init(&mut deps, env, init_msg).unwrap();
         assert_eq!(0, res.messages.len());
@@ -412,5 +485,49 @@ mod tests {
         println!("Revoked_permits: {:?}", revoked_permits);
 
         assert_eq!(true, revoked_permits);
+    }
+
+    #[test]
+    fn handle_viewing_key() {
+        // First we init
+        let mut deps = mock_dependencies(20, &coins(2, "token"));
+        let init_msg = InitMsg {
+            max_size: 10000,
+            prng_seed: "this is a padding".to_string(),
+        };
+        let env = mock_env("creator", &coins(20, "token"));
+        let res = init(&mut deps, env, init_msg).unwrap();
+        assert_eq!(0, res.messages.len());
+
+        // WE RECORD THE SCORE
+        let _env = mock_env("creator", &coins(20, "token"));
+        let msg = HandleMsg::Record {
+            score: 300,
+            description: String::from("Good job dude"),
+        };
+        let record_res = handle(&mut deps, _env, msg).unwrap();
+        assert_eq!(0, record_res.messages.len());
+
+        // Create a viewing key
+        let __env = mock_env("creator", &coins(20, "token"));
+        let v_key_msg = HandleMsg::GenerateViewingKey {
+            entropy: "This is a string".to_string(),
+            padding: Some(String::from("Good job dude")),
+        };
+
+        handle(&mut deps, __env, v_key_msg).unwrap(); //generates key: "api_key_j0y+6OGIPoHIcEEJw3WiM2695AzuNcBu/qjDwDPdwUQ="
+
+        // Query w Viewing key
+
+        let __env_ = mock_env("querier", &coins(20, "token"));
+        let query_msg = QueryMsg::Read {
+            address: HumanAddr("creator".to_string()),
+            key: ("api_key_j0y+6OGIPoHIcEEJw3WiM2695AzuNcBu/qjDwDPdwUQ=".to_string()),
+        };
+
+        let res = query(&deps, query_msg).unwrap();
+        let value: ScoreResponse = from_binary(&res).unwrap();
+        assert_eq!(300, value.score.unwrap());
+        assert_eq!("Good job dude", value.description);
     }
 }
