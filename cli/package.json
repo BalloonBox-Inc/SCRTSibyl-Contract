@@ -4,7 +4,11 @@
   "main": "index.js",
   "scripts": {
     "go": "npx ts-node index.ts",
-    "keypair": "npx ts-node keypair.ts"
+    "keypair": "npx ts-node keypair.ts",
+    "balance": "npx ts-node balance.ts",
+    "query_stats": "npx ts-node queryStats.ts",
+    "set_data": "npx ts-node setData.ts",
+    "get_data": "npx ts-node getData.ts"
   },
   "license": "MIT",
   "devDependencies": {
@@ -12,6 +16,7 @@
     "typescript": "^4.6.2"
   },
   "dependencies": {
+    "chalk": "^4.5.0",
     "secretjs": "^0.17.5"
   }
 }

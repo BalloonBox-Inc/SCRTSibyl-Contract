@@ -1,3 +1,5 @@
+import { CUSTOM_FEES, TESTNET_URL } from "./CONSTANTS";
+
 const {
   EnigmaUtils,
   Secp256k1Pen,
@@ -6,33 +8,15 @@ const {
   encodeSecp256k1Pubkey,
 } = require("secretjs");
 const fs = require("fs");
+const chalk = require("chalk");
 
+const log = console.log;
 // Load environment variables
 require("dotenv").config();
 
 const MAX_SIZE = 1000;
 const KEYPAIR = require("./keys.json");
-const WASM = fs.readFileSync("../contract.wasm");
-const TESTNET_URL = "http://testnet.securesecrets.org:1317/";
-
-const customFees = {
-  upload: {
-    amount: [{ amount: "5000000", denom: "uscrt" }],
-    gas: "5000000",
-  },
-  init: {
-    amount: [{ amount: "500000", denom: "uscrt" }],
-    gas: "500000",
-  },
-  exec: {
-    amount: [{ amount: "500000", denom: "uscrt" }],
-    gas: "500000",
-  },
-  send: {
-    amount: [{ amount: "80000", denom: "uscrt" }],
-    gas: "80000",
-  },
-};
+const WASM = fs.readFileSync("./contract.wasm");
 
 const main = async () => {
   if (KEYPAIR?.mnemonic) {
@@ -45,8 +29,6 @@ const main = async () => {
     // Get the public key
     const pubkey = encodeSecp256k1Pubkey(signingPen.pubkey);
 
-    console.log({ pubkey });
-
     // get the wallet address
     const accAddress = pubkeyToAddress(pubkey, "secret");
 
@@ -57,20 +39,19 @@ const main = async () => {
       accAddress,
       (signBytes) => signingPen.sign(signBytes),
       txEncryptionSeed,
-      customFees
+      CUSTOM_FEES
     );
 
-    const wasm = fs.readFileSync("../contract.wasm");
-    const uploadReceipt = await client.upload(wasm, {}).catch((err) => {
+    const uploadReceipt = await client.upload(WASM, {}).catch((err) => {
       throw new Error(`Could not upload contract: ${err}`);
     });
 
-    console.log("Received upload receipt, instantiating contract");
+    log(chalk.green("Received upload receipt, instantiating contract"));
 
     // Get the code ID from the receipt
     const { codeId } = uploadReceipt;
 
-    const initMsg = { max_size: MAX_SIZE };
+    const initMsg = { max_size: MAX_SIZE, prng_seed: "seed" };
     const contract = await client
       .instantiate(codeId, initMsg, accAddress.slice(6))
       .catch((err) => {
@@ -79,7 +60,14 @@ const main = async () => {
 
     const { contractAddress } = contract;
 
-    console.log("contract: ", contract, "address:", contractAddress);
+    fs.writeFileSync(
+      "contract.json",
+      JSON.stringify({
+        contractAddress,
+        transactionHash: contract.transactionHash,
+        initData: contract.data,
+      })
+    );
   }
 };
 

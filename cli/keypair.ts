@@ -1,6 +1,9 @@
 import { Bip39, Random } from "@iov/crypto";
 import { Secp256k1Pen, pubkeyToAddress, encodeSecp256k1Pubkey } from "secretjs";
 const fs = require("fs");
+const chalk = require("chalk");
+
+const log = console.log;
 
 /*
 This endpoint will generate a mnemonic and secret public address. 
@@ -24,8 +27,18 @@ async function main() {
 }
 
 main()
-  .then((data) => {
-    console.log({ data });
+  .then((data: any) => {
+    if (data) {
+      log(chalk.green("Hooray! 🎉 here is your keypair"));
+      log(chalk.blue("Mnemonic: ", data.mnemonic));
+      log(chalk.blue("Address: ", data.address));
+
+      log(
+        chalk.magenta(
+          "Visit https://faucet.secrettestnet.io to request funds for your new address!"
+        )
+      );
+    }
     process.exit(0);
   })
   .catch((err) => {

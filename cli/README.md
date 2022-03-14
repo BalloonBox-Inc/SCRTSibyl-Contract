@@ -1,8 +1,6 @@
-# 🚀 SCRT SIBYL - Contract Development Helper
+# 🚀 SCRT NETWORK - Contract Development Helper
 
-![scrt sibyl image](../images/logo_horizontal.png)
-
-This is a simple node module intended to help with development on the SECRET Network.
+This is a simple module intended to help with development on the SECRET Network.
 
 ### Requirements
 
