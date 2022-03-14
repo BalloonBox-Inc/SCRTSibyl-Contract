@@ -78,7 +78,7 @@ pub fn try_generate_viewing_key<S: Storage, A: Api, Q: Querier>(
     env: Env,
     entropy: String,
 ) -> StdResult<HandleResponse> {
-    let config: State = load(&mut deps.storage, CONFIG_KEY)?;
+    let config: State = load(&deps.storage, CONFIG_KEY)?;
     let prng_seed = config.prng_seed;
 
     let key = ViewingKey::new(&env, &prng_seed, (&entropy).as_ref());
