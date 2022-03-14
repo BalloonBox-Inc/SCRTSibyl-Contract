@@ -3,8 +3,8 @@ use std::fs::create_dir_all;
 
 use cosmwasm_schema::{export_schema, remove_schemas, schema_for};
 
-use secret_template::msg::{HandleMsg, InitMsg, QueryMsg, ScoreResponse};
-use secret_template::state::State;
+use scrtsibyl_contract::msg::{HandleMsg, InitMsg, QueryMsg, ScoreResponse};
+use scrtsibyl_contract::state::State;
 
 fn main() {
     let mut out_dir = current_dir().unwrap();

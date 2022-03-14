@@ -54,6 +54,29 @@
           }
         }
       }
+    },
+    {
+      "type": "object",
+      "required": [
+        "read"
+      ],
+      "properties": {
+        "read": {
+          "type": "object",
+          "required": [
+            "address",
+            "key"
+          ],
+          "properties": {
+            "address": {
+              "$ref": "#/definitions/HumanAddr"
+            },
+            "key": {
+              "type": "string"
+            }
+          }
+        }
+      }
     }
   ],
   "definitions": {

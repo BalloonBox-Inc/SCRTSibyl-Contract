@@ -3,13 +3,17 @@
   "title": "InitMsg",
   "type": "object",
   "required": [
-    "max_size"
+    "max_size",
+    "prng_seed"
   ],
   "properties": {
     "max_size": {
       "type": "integer",
       "format": "uint16",
       "minimum": 0.0
+    },
+    "prng_seed": {
+      "type": "string"
     }
   }
 }

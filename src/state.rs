@@ -3,13 +3,25 @@ use serde::de::DeserializeOwned;
 use serde::{Deserialize, Serialize};
 use std::any::type_name;
 
-use cosmwasm_std::{HumanAddr, ReadonlyStorage, StdError, StdResult, Storage};
+use crate::viewing_key::ViewingKey;
+use cosmwasm_std::{CanonicalAddr, HumanAddr, ReadonlyStorage, StdError, StdResult, Storage};
 use cosmwasm_storage::{PrefixedStorage, ReadonlyPrefixedStorage};
 use secret_toolkit::serialization::{Bincode2, Serde};
 
 pub static CONFIG_KEY: &[u8] = b"config";
 pub const PREFIX_CONFIG: &[u8] = b"config";
 pub const KEY_CONSTANTS: &[u8] = b"constants";
+pub const PREFIX_VIEWING_KEY: &[u8] = b"viewingkey";
+
+pub fn write_viewing_key<S: Storage>(store: &mut S, owner: &CanonicalAddr, key: &ViewingKey) {
+    let mut user_key_store = PrefixedStorage::new(PREFIX_VIEWING_KEY, store);
+    user_key_store.set(owner.as_slice(), &key.to_hashed());
+}
+
+pub fn read_viewing_key<S: Storage>(store: &S, owner: &CanonicalAddr) -> Option<Vec<u8>> {
+    let user_key_store = ReadonlyPrefixedStorage::new(PREFIX_VIEWING_KEY, store);
+    user_key_store.get(owner.as_slice())
+}
 
 #[derive(Serialize, Debug, Deserialize, Clone, PartialEq, JsonSchema)]
 pub struct Constants {
@@ -85,6 +97,7 @@ impl<'a, S: Storage> Config<'a, S> {
 pub struct State {
     pub max_size: u16,
     pub score_count: u64,
+    pub prng_seed: Vec<u8>,
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq)]

@@ -1,11 +1,12 @@
+use crate::viewing_key::ViewingKey;
 use cosmwasm_std::{HumanAddr, StdResult};
 use schemars::JsonSchema;
 use secret_toolkit::permit::Permit;
 use serde::{Deserialize, Serialize};
-
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
 pub struct InitMsg {
     pub max_size: u16,
+    pub prng_seed: String,
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
@@ -23,6 +24,11 @@ pub enum HandleMsg {
 
     RevokePermit {
         permit_name: String,
+        padding: Option<String>,
+    },
+
+    GenerateViewingKey {
+        entropy: String,
         padding: Option<String>,
     },
 }
@@ -55,6 +61,10 @@ pub enum HandleAnswer {
     PermitHandle {
         data: StdResult<ScoreResponse>,
     },
+
+    GenerateViewingKey {
+        key: ViewingKey,
+    },
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
@@ -68,6 +78,11 @@ pub enum QueryMsg {
         permit: Permit,
         query: QueryWithPermit,
     },
+
+    Read {
+        address: HumanAddr,
+        key: String,
+    },
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
@@ -77,15 +92,24 @@ pub enum QueryWithPermit {
 }
 
 impl QueryMsg {
-    pub fn get_validation_params(&self) -> Vec<&HumanAddr> {
+    pub fn get_validation_params(&self) -> (Vec<&HumanAddr>, ViewingKey) {
         match self {
-            Self::GetScore { address, .. } => {
-                vec![address]
-            }
+            Self::Read { address, key, .. } => (vec![address], ViewingKey(key.clone())),
             _ => panic!("This query type does not require authentication"),
         }
     }
 }
+
+// impl QueryMsg {
+//     pub fn get_validation_params(&self) -> Vec<&HumanAddr> {
+//         match self {
+//             Self::GetScore { address, .. } => {
+//                 vec![address]
+//             }
+//             _ => panic!("This query type does not require authentication"),
+//         }
+//     }
+// }
 
 // We define a custom struct for each query response
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
@@ -102,16 +126,25 @@ pub struct StatsResponse {
     pub max_size: u16,
 }
 
+#[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
+pub struct StateResponse {
+    pub score_count: u64,
+    pub max_size: u16,
+    pub prng_seed: Vec<u8>,
+}
+
 /// Responses from query functions
 #[derive(Serialize, Deserialize, Debug, JsonSchema)]
 #[serde(rename_all = "snake_case")]
 pub enum QueryAnswer {
     /// Return basic statistics about contract
-    Stats {
-        score_count: u64,
-        max_size: u16,
-    },
+    Stats { score_count: u64, max_size: u16 },
+    // Read {
+    //     score: Option<u64>,
+    // },
     Read {
         score: Option<u64>,
+        timestamp: Option<u64>,
+        description: Vec<u8>,
     },
 }
