@@ -29,7 +29,7 @@ const MAX_SIZE = 1000;
 const WASM = fs.readFileSync("../contract.wasm");
 ```
 
-## 4. Upload and Initiate your contract
+## 5. Upload and Initiate your contract
 
 Run `yarn go` to upload and initiate your contract
 
