@@ -118,7 +118,7 @@ fn permit_handle<S: Storage, A: Api, Q: Querier>(
         QueryWithPermit::Balance {} => {
             if !permit.check_permission(&Permission::Balance) {
                 return Err(StdError::generic_err(format!(
-                    "No permission to query balance (score), got permissions {:?}",
+                    "No permission to query score, got permissions {:?}",
                     permit.params.permissions
                 )));
             }
@@ -503,7 +503,7 @@ mod tests {
         let _env = mock_env("creator", &coins(20, "token"));
         let msg = HandleMsg::Record {
             score: 300,
-            description: String::from("Good job dude"),
+            description: String::from("Your SCRTSibyl score is FAIR, with a total of 581 points, which qualifies you for a loan of up to $5000 USD. SCRTSibyl computed your score accounting for your Plaid diamond 12.5% apr interest credit card credit card your total current balance of $44520 and your 9 different bank accounts. An error occurred during computation of the metrics: velocity, and your score was rounded down. Try again later or log in using a different account."),
         };
         let record_res = handle(&mut deps, _env, msg).unwrap();
         assert_eq!(0, record_res.messages.len());
@@ -528,6 +528,6 @@ mod tests {
         let res = query(&deps, query_msg).unwrap();
         let value: ScoreResponse = from_binary(&res).unwrap();
         assert_eq!(300, value.score.unwrap());
-        assert_eq!("Good job dude", value.description);
+        assert_eq!("Your SCRTSibyl score is FAIR, with a total of 581 points, which qualifies you for a loan of up to $5000 USD. SCRTSibyl computed your score accounting for your Plaid diamond 12.5% apr interest credit card credit card your total current balance of $44520 and your 9 different bank accounts. An error occurred during computation of the metrics: velocity, and your score was rounded down. Try again later or log in using a different account.", value.description);
     }
 }
