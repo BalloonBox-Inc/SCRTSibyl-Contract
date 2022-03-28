@@ -40,7 +40,6 @@ schemars = "0.7"
 cosmwasm-std = { version = "0.10", package = "secret-cosmwasm-std" }
 cosmwasm-storage = { version = "0.10", package = "secret-cosmwasm-storage" }
 secret-toolkit = {version = "0.2.0", debug=true, features = ["permit"]} # Uncomment this for extra tools
-secp256k1 = {package = "secp256k1", version = "0.21.2", features = ["rand-std", "recovery"]}
 sha2 = {package = "sha2", version = "0.9.1", default-features = false}
 ripemd160 = {package="ripemd160", version = "0.9.1"}
 bincode2 = "2.0.1"

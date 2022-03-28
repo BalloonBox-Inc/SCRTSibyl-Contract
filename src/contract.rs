@@ -12,8 +12,7 @@ use cosmwasm_std::{
     Querier, QueryResult, StdError, StdResult, Storage,
 };
 use ripemd160::{Digest, Ripemd160};
-use secp256k1::Secp256k1;
-use secret_toolkit::permit::{Permission, Permit, RevokedPermits, SignedPermit};
+use secret_toolkit::permit::{validate, Permission, Permit, RevokedPermits};
 use sha2::Sha256;
 
 pub const PREFIX_REVOKED_PERMITS: &str = "revoked_permits";
@@ -66,7 +65,7 @@ pub fn handle<S: Storage, A: Api, Q: Querier>(
     match msg {
         HandleMsg::Record { score, description } => try_record(deps, env, score, description),
         HandleMsg::RevokePermit { permit_name, .. } => revoke_permit(deps, env, permit_name),
-        HandleMsg::WithPermit { permit, query } => permit_handle(deps, permit, query, env),
+        HandleMsg::WithPermit { permit, query } => permit_handle(deps, permit, query),
         HandleMsg::GenerateViewingKey { entropy, .. } => {
             try_generate_viewing_key(deps, env, entropy)
         }
@@ -98,18 +97,11 @@ fn permit_handle<S: Storage, A: Api, Q: Querier>(
     deps: &Extern<S, A, Q>,
     permit: Permit,
     query: QueryWithPermit,
-    env: Env,
 ) -> StdResult<HandleResponse> {
     // Validate permit content
     let token_address = ReadonlyConfig::from_storage(&deps.storage)
         .constants()?
         .contract_address;
-
-    if env.message.sender.to_string() != permit.params.permit_name {
-        return Err(StdError::generic_err(
-            "Permission for this sender has not been authorized.".to_string(),
-        ));
-    }
 
     let account = validate(deps, PREFIX_REVOKED_PERMITS, &permit, token_address)?;
     // Permit validated! We can now execute the query.
@@ -118,7 +110,7 @@ fn permit_handle<S: Storage, A: Api, Q: Querier>(
         QueryWithPermit::Balance {} => {
             if !permit.check_permission(&Permission::Balance) {
                 return Err(StdError::generic_err(format!(
-                    "No permission to query balance (score), got permissions {:?}",
+                    "No permission to query score, got permissions {:?}",
                     permit.params.permissions
                 )));
             }
@@ -215,7 +207,7 @@ fn query_read<S: Storage, A: Api, Q: Querier>(
             status = String::from("Score found.");
         }
         None => {
-            status = String::from("Reminder not found.");
+            status = String::from("Score not found.");
             description = String::from("N/A");
             return Ok(ScoreResponse {
                 status,
@@ -303,71 +295,6 @@ pub fn sha_256(data: &[u8]) -> [u8; SHA256_HASH_SIZE] {
     result
 }
 
-pub fn validate<S: Storage, A: Api, Q: Querier>(
-    deps: &Extern<S, A, Q>,
-    storage_prefix: &str,
-    permit: &Permit,
-    current_token_address: HumanAddr,
-) -> StdResult<HumanAddr> {
-    if !permit.check_token(&current_token_address) {
-        return Err(StdError::generic_err(format!(
-            "Permit doesn't apply to token {:?}, allowed tokens: {:?}",
-            current_token_address.as_str(),
-            permit
-                .params
-                .allowed_tokens
-                .iter()
-                .map(|a| a.as_str())
-                .collect::<Vec<&str>>()
-        )));
-    }
-
-    // Derive account from pubkey
-    let pubkey = &permit.signature.pub_key.value;
-    let account = deps.api.human_address(&pubkey_to_account(pubkey))?;
-
-    // Validate permit_name
-    let permit_name = &permit.params.permit_name;
-    let is_permit_revoked =
-        RevokedPermits::is_permit_revoked(&deps.storage, storage_prefix, &account, permit_name);
-    if is_permit_revoked {
-        return Err(StdError::generic_err(format!(
-            "Permit {:?} was revoked by account {:?}",
-            permit_name,
-            account.as_str()
-        )));
-    }
-
-    // // Validate signature, reference: https://github.com/enigmampc/SecretNetwork/blob/f591ed0cb3af28608df3bf19d6cfb733cca48100/cosmwasm/packages/wasmi-runtime/src/crypto/secp256k1.rs#L49-L82
-    let signed_bytes = to_binary(&SignedPermit::from_params(&permit.params))?;
-    let signed_bytes_hash = sha_256(signed_bytes.as_slice());
-    let secp256k1_msg = secp256k1::Message::from_slice(&signed_bytes_hash).map_err(|err| {
-        StdError::generic_err(format!(
-            "Failed to create a secp256k1 message from signed_bytes: {:?}",
-            err
-        ))
-    })?;
-
-    let secp256k1_verifier = Secp256k1::verification_only();
-
-    let secp256k1_signature =
-        secp256k1::ecdsa::Signature::from_compact(&permit.signature.signature.0)
-            .map_err(|err| StdError::generic_err(format!("Malformed signature: {:?}", err)))?;
-    let secp256k1_pubkey = secp256k1::PublicKey::from_slice(pubkey.0.as_slice())
-        .map_err(|err| StdError::generic_err(format!("Malformed pubkey: {:?}", err)))?;
-
-    secp256k1_verifier
-        .verify_ecdsa(&secp256k1_msg, &secp256k1_signature, &secp256k1_pubkey)
-        .map_err(|err| {
-            StdError::generic_err(format!(
-                "Failed to verify signatures for the given permit: {:?}",
-                err
-            ))
-        })?;
-
-    Ok(account)
-}
-
 fn permit_queries<S: Storage, A: Api, Q: Querier>(
     deps: &Extern<S, A, Q>,
     permit: Permit,
@@ -433,11 +360,9 @@ mod tests {
         let res = query(&deps, query_msg).unwrap();
 
         let value: ScoreResponse = from_binary(&res).unwrap();
-        println!("value from first test is {:?}", value);
 
         assert_eq!(300, value.score.unwrap());
 
-        println!("SCORE DESCIPTION IS: {}", value.description);
         assert_eq!("This describes your score", value.description);
 
         // Query the stats
@@ -449,17 +374,23 @@ mod tests {
     #[test]
     fn handle_revoke_permit() {
         // First we init
-        let mut deps = mock_dependencies(20, &coins(2, "token"));
+        let mut deps = mock_dependencies(45, &coins(2, "token"));
         let init_msg = InitMsg {
             max_size: 10000,
             prng_seed: "this is a padding".to_string(),
         };
-        let env = mock_env("creator", &coins(20, "token"));
+        let env = mock_env(
+            "secret1nl7dnjcs9w2a4mn4q43nwyptf3uyllp3xh44j0",
+            &coins(20, "token"),
+        );
         let res = init(&mut deps, env, init_msg).unwrap();
         assert_eq!(0, res.messages.len());
 
         // WE RECORD THE SCORE
-        let _env = mock_env("creator", &coins(20, "token"));
+        let _env = mock_env(
+            "secret1nl7dnjcs9w2a4mn4q43nwyptf3uyllp3xh44j0",
+            &coins(20, "token"),
+        );
         let msg = HandleMsg::Record {
             score: 300,
             description: String::from("Good job dude"),
@@ -482,7 +413,6 @@ mod tests {
         let storage_key = PREFIX_REVOKED_PERMITS.to_string() + "creator" + "test";
 
         let revoked_permits = deps.storage.get(storage_key.as_bytes()).is_some();
-        println!("Revoked_permits: {:?}", revoked_permits);
 
         assert_eq!(true, revoked_permits);
     }
@@ -503,7 +433,7 @@ mod tests {
         let _env = mock_env("creator", &coins(20, "token"));
         let msg = HandleMsg::Record {
             score: 300,
-            description: String::from("Good job dude"),
+            description: String::from("Your SCRTSibyl score is FAIR, with a total of 581 points, which qualifies you for a loan of up to $5000 USD. SCRTSibyl computed your score accounting for your Plaid diamond 12.5% apr interest credit card credit card your total current balance of $44520 and your 9 different bank accounts. An error occurred during computation of the metrics: velocity, and your score was rounded down. Try again later or log in using a different account."),
         };
         let record_res = handle(&mut deps, _env, msg).unwrap();
         assert_eq!(0, record_res.messages.len());
@@ -528,6 +458,6 @@ mod tests {
         let res = query(&deps, query_msg).unwrap();
         let value: ScoreResponse = from_binary(&res).unwrap();
         assert_eq!(300, value.score.unwrap());
-        assert_eq!("Good job dude", value.description);
+        assert_eq!("Your SCRTSibyl score is FAIR, with a total of 581 points, which qualifies you for a loan of up to $5000 USD. SCRTSibyl computed your score accounting for your Plaid diamond 12.5% apr interest credit card credit card your total current balance of $44520 and your 9 different bank accounts. An error occurred during computation of the metrics: velocity, and your score was rounded down. Try again later or log in using a different account.", value.description);
     }
 }

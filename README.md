@@ -47,3 +47,13 @@ cargo wasm
 ```
 
 You'll find the built file in /target/wasm32-unknown-unknown/release/name_of_your_contract.wasm
+
+To build an optimized wasm file (without using Docker) run:
+
+`make _build-mainnet`
+
+then to copy it and zip it into the source folder:
+
+`make compress-wasm`
+
+you can check out the makefile file for the detailed scripts.

@@ -36,11 +36,10 @@ const main = async () => {
     const submitScoreMsg = {
       record: {
         score: 400,
-        description: "This is a description of the user score.",
+        description:
+          "Your SCRTSibyl score is FAIR, with a total of 581 points, which qualifies you for a loan of up to $5000 USD. SCRTSibyl computed your score accounting for your Plaid diamond 12.5% apr interest credit card credit card your total current balance of $44520 and your 9 different bank accounts. An error occurred during computation of the metrics: velocity, and your score was rounded down. Try again later or log in using a different account.",
       },
     };
-    // const handleMsg = {increment: {}};
-    // const response = await client.execute(contractId, handleMsg);
     let handle_response = await client.execute(
       CONTRACT_DATA.contractAddress,
       submitScoreMsg
