@@ -165,7 +165,7 @@ pub fn try_record<S: Storage, A: Api, Q: Querier>(
 
     save(&mut deps.storage, sender_address.as_slice(), &stored_score)?;
 
-    if user_state {
+    if !user_state {
         let state: StateResponse = query_state(deps).unwrap();
 
         let new_state = State {
@@ -246,7 +246,6 @@ fn query_state<S: Storage, A: Api, Q: Querier>(deps: &Extern<S, A, Q>) -> StdRes
 pub fn query<S: Storage, A: Api, Q: Querier>(deps: &Extern<S, A, Q>, msg: QueryMsg) -> QueryResult {
     match msg {
         QueryMsg::GetStats {} => to_binary(&query_stats(deps)?), // get the max_length allowed and the count
-        QueryMsg::GetScore { address } => to_binary(&query_read(deps, &address)?),
         QueryMsg::WithPermit { permit, query } => permit_queries(deps, permit, query),
         _ => authenticated_queries(deps, msg),
     }
@@ -350,25 +349,48 @@ mod tests {
         };
         let record_res = handle(&mut deps, _env, msg).unwrap();
         assert_eq!(0, record_res.messages.len());
+    }
 
-        // NEXT WE QUERY THE SCORE
-        let query_env = mock_env("creator", &coins(20, "token"));
-        let query_msg = QueryMsg::GetScore {
-            address: query_env.message.sender,
+    #[test]
+    fn stats_increment() {
+        // First we init
+        let mut deps = mock_dependencies(20, &coins(20, "token"));
+        let init_msg = InitMsg {
+            max_size: 10000,
+            prng_seed: "this is a padding".to_string(),
+        };
+        let env = mock_env("creator", &coins(20, "token"));
+        let res = init(&mut deps, env, init_msg).unwrap();
+        assert_eq!(0, res.messages.len());
+
+        // WE RECORD THE SCORE
+        let _env = mock_env("submitter", &coins(20, "token"));
+        let msg = HandleMsg::Record {
+            score: 300,
+            description: "This describes your score".to_string(),
         };
 
-        let res = query(&deps, query_msg).unwrap();
+        handle(&mut deps, _env, msg).unwrap();
 
-        let value: ScoreResponse = from_binary(&res).unwrap();
+        // WE QUERY THE STATS
+        let stats_msg = QueryMsg::GetStats {};
+        let stats_res = query(&deps, stats_msg).unwrap();
+        let value: StatsResponse = from_binary(&stats_res).unwrap();
+        assert_eq!(1, value.score_count);
 
-        assert_eq!(300, value.score.unwrap());
+        // WE RECORD THE SCORE A 2ND TIME WITH SAME USER
+        let __env = mock_env("submitter", &coins(20, "token"));
+        let msg = HandleMsg::Record {
+            score: 200,
+            description: "This describes your 2nd score".to_string(),
+        };
+        handle(&mut deps, __env, msg).unwrap();
 
-        assert_eq!("This describes your score", value.description);
-
-        // Query the stats
-        let res = query(&deps, QueryMsg::GetStats {}).unwrap();
-        let value: StatsResponse = from_binary(&res).unwrap();
-        assert_eq!(10000, value.max_size);
+        // WE QUERY THE STATS again
+        let stats_msg2 = QueryMsg::GetStats {};
+        let stats_res2 = query(&deps, stats_msg2).unwrap();
+        let value2: StatsResponse = from_binary(&stats_res2).unwrap();
+        assert_eq!(1, value2.score_count);
     }
 
     #[test]
@@ -448,8 +470,6 @@ mod tests {
         handle(&mut deps, __env, v_key_msg).unwrap(); //generates key: "api_key_j0y+6OGIPoHIcEEJw3WiM2695AzuNcBu/qjDwDPdwUQ="
 
         // Query w Viewing key
-
-        let __env_ = mock_env("querier", &coins(20, "token"));
         let query_msg = QueryMsg::Read {
             address: HumanAddr("creator".to_string()),
             key: ("api_key_j0y+6OGIPoHIcEEJw3WiM2695AzuNcBu/qjDwDPdwUQ=".to_string()),
