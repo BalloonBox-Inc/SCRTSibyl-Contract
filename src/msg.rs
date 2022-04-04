@@ -100,17 +100,6 @@ impl QueryMsg {
     }
 }
 
-// impl QueryMsg {
-//     pub fn get_validation_params(&self) -> Vec<&HumanAddr> {
-//         match self {
-//             Self::GetScore { address, .. } => {
-//                 vec![address]
-//             }
-//             _ => panic!("This query type does not require authentication"),
-//         }
-//     }
-// }
-
 // We define a custom struct for each query response
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
 pub struct ScoreResponse {
