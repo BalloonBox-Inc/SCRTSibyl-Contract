@@ -8,10 +8,10 @@ use crate::state::{
 };
 use crate::viewing_key::{ViewingKey, VIEWING_KEY_SIZE};
 use cosmwasm_std::{
-    to_binary, Api, Binary, CanonicalAddr, Env, Extern, HandleResponse, HumanAddr, InitResponse,
+    to_binary, Api, Binary, Env, Extern, HandleResponse, HumanAddr, InitResponse,
     Querier, QueryResult, StdError, StdResult, Storage,
 };
-use ripemd160::{Digest, Ripemd160};
+use ripemd160::{Digest};
 use secret_toolkit::permit::{validate, Permission, Permit, RevokedPermits};
 use sha2::Sha256;
 
@@ -278,11 +278,6 @@ fn authenticated_queries<S: Storage, A: Api, Q: Querier>(
     Err(StdError::unauthorized())
 }
 
-pub fn pubkey_to_account(pubkey: &Binary) -> CanonicalAddr {
-    let mut hasher = Ripemd160::new();
-    hasher.update(sha_256(&pubkey.0));
-    CanonicalAddr(Binary(hasher.finalize().to_vec()))
-}
 
 pub fn sha_256(data: &[u8]) -> [u8; SHA256_HASH_SIZE] {
     let mut hasher = Sha256::new();
@@ -363,6 +358,7 @@ mod tests {
         let res = init(&mut deps, env, init_msg).unwrap();
         assert_eq!(0, res.messages.len());
 
+       
         // WE RECORD THE SCORE
         let _env = mock_env("submitter", &coins(20, "token"));
         let msg = HandleMsg::Record {

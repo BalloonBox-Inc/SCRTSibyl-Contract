@@ -48,12 +48,6 @@ pub enum HandleAnswer {
         status: String,
     },
 
-    Read {
-        status: String,
-        score: Option<u64>,
-        description: Vec<u8>,
-    },
-
     RevokePermit {
         status: ResponseStatus,
     },
@@ -70,10 +64,8 @@ pub enum HandleAnswer {
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
 #[serde(rename_all = "snake_case")]
 pub enum QueryMsg {
-    GetScore {
-        address: HumanAddr,
-    },
     GetStats {},
+
     WithPermit {
         permit: Permit,
         query: QueryWithPermit,
@@ -122,18 +114,4 @@ pub struct StateResponse {
     pub prng_seed: Vec<u8>,
 }
 
-/// Responses from query functions
-#[derive(Serialize, Deserialize, Debug, JsonSchema)]
-#[serde(rename_all = "snake_case")]
-pub enum QueryAnswer {
-    /// Return basic statistics about contract
-    Stats { score_count: u64, max_size: u16 },
-    // Read {
-    //     score: Option<u64>,
-    // },
-    Read {
-        score: Option<u64>,
-        timestamp: Option<u64>,
-        description: Vec<u8>,
-    },
-}
+
