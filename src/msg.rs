@@ -113,5 +113,3 @@ pub struct StateResponse {
     pub max_size: u16,
     pub prng_seed: Vec<u8>,
 }
-
-
